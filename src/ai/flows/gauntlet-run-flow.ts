@@ -9,7 +9,15 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import {getFirestore, doc, updateDoc, increment} from 'firebase/firestore';
+import { initializeApp, cert, getApps } from 'firebase-admin/app';
+import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+
+// Initialize Firebase Admin SDK if not already initialized.
+if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY && !getApps().length) {
+  initializeApp({
+    credential: cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY)),
+  });
+}
 
 // Define tools
 const decrementCreditsTool = ai.defineTool(
@@ -21,11 +29,15 @@ const decrementCreditsTool = ai.defineTool(
   },
   async ({userId}) => {
     try {
-      const db = getFirestore();
-      const userRef = doc(db, 'users', userId);
-      await updateDoc(userRef, {
-        credits: increment(-1),
-        total_runs: increment(1),
+      if (!getApps().length) {
+        console.error('Firebase Admin SDK not initialized. Skipping credit decrement.');
+        return;
+      }
+      const adminDb = getFirestore();
+      const userRef = adminDb.collection('users').doc(userId);
+      await userRef.update({
+        credits: FieldValue.increment(-1),
+        total_runs: FieldValue.increment(1),
       });
     } catch (e) {
       console.error('Failed to decrement credits:', e);
