@@ -33,7 +33,7 @@ export default function LoginPage() {
                 </div>
                 <CardTitle className="text-2xl">The Gauntlet</CardTitle>
                 <CardDescription>
-                    Sign in to test your hooks.
+                    Sign in with your Google account to run The Gauntlet.
                 </CardDescription>
             </CardHeader>
             <CardContent>
