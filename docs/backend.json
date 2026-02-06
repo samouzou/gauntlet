@@ -6,10 +6,6 @@
       "type": "object",
       "description": "Represents a SaaS customer organization.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the organization."
-        },
         "name": {
           "type": "string",
           "description": "Name of the organization."
@@ -22,12 +18,20 @@
           "type": "string",
           "description": "Timestamp of when the organization was created.",
           "format": "date-time"
+        },
+        "members": {
+          "type": "object",
+          "description": "A map of user UIDs to their roles within the organization.",
+          "additionalProperties": {
+            "type": "string",
+            "enum": ["admin", "member"]
+          }
         }
       },
       "required": [
-        "id",
         "name",
-        "createdAt"
+        "createdAt",
+        "members"
       ]
     },
     "Subscription": {
@@ -36,14 +40,6 @@
       "type": "object",
       "description": "Represents a customer's subscription to the SaaS service.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the subscription."
-        },
-        "organizationId": {
-          "type": "string",
-          "description": "Reference to Organization. (Relationship: Organization 1:N Subscription)"
-        },
         "planName": {
           "type": "string",
           "description": "Name of the subscription plan."
@@ -68,8 +64,6 @@
         }
       },
       "required": [
-        "id",
-        "organizationId",
         "planName",
         "startDate",
         "mrr"
@@ -81,14 +75,6 @@
       "type": "object",
       "description": "Represents a one-time purchase made by a customer.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the one-time purchase."
-        },
-        "organizationId": {
-          "type": "string",
-          "description": "Reference to Organization. (Relationship: Organization 1:N OneTimePurchase)"
-        },
         "description": {
           "type": "string",
           "description": "Description of the purchased item(s)."
@@ -104,8 +90,6 @@
         }
       },
       "required": [
-        "id",
-        "organizationId",
         "description",
         "amount",
         "purchaseDate"
@@ -117,14 +101,6 @@
       "type": "object",
       "description": "Represents an operational or marketing expense.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the expense."
-        },
-        "organizationId": {
-          "type": "string",
-          "description": "Reference to Organization. (Relationship: Organization 1:N Expense)"
-        },
         "category": {
           "type": "string",
           "description": "Category of the expense (e.g., Marketing, Operational)."
@@ -144,8 +120,6 @@
         }
       },
       "required": [
-        "id",
-        "organizationId",
         "category",
         "amount",
         "date"
@@ -157,14 +131,6 @@
       "type": "object",
       "description": "Represents a cash flow projection.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the projection."
-        },
-        "organizationId": {
-          "type": "string",
-          "description": "Reference to Organization. (Relationship: Organization 1:N CashFlowProjection)"
-        },
         "projectionDate": {
           "type": "string",
           "description": "The date for which the cash flow is projected.",
@@ -184,8 +150,6 @@
         }
       },
       "required": [
-        "id",
-        "organizationId",
         "projectionDate",
         "projectedRevenue",
         "projectedExpenses",
@@ -198,14 +162,6 @@
       "type": "object",
       "description": "Represents a financial scenario (e.g., best case, worst case, base case).",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the scenario."
-        },
-        "organizationId": {
-          "type": "string",
-          "description": "Reference to Organization. (Relationship: Organization 1:N Scenario)"
-        },
         "name": {
           "type": "string",
           "description": "Name of the scenario (e.g., Best Case, Worst Case)."
@@ -228,8 +184,6 @@
         }
       },
       "required": [
-        "id",
-        "organizationId",
         "name",
         "revenueGrowthRate",
         "churnRate"

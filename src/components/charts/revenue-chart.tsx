@@ -7,21 +7,8 @@ import {
   ChartTooltipContent,
   ChartConfig,
 } from '@/components/ui/chart';
-
-const chartData = [
-  { month: 'January', revenue: 1860 },
-  { month: 'February', revenue: 3050 },
-  { month: 'March', revenue: 2370 },
-  { month: 'April', revenue: 730 },
-  { month: 'May', revenue: 2090 },
-  { month: 'June', revenue: 2140 },
-  { month: 'July', revenue: 2500 },
-  { month: 'August', revenue: 2900 },
-  { month: 'September', revenue: 2600 },
-  { month: 'October', revenue: 3100 },
-  { month: 'November', revenue: 3300 },
-  { month: 'December', revenue: 3800 },
-];
+import { useMemo } from 'react';
+import { subMonths, format, startOfMonth, endOfMonth } from 'date-fns';
 
 const chartConfig = {
   revenue: {
@@ -30,7 +17,41 @@ const chartConfig = {
   },
 } satisfies ChartConfig;
 
-export function RevenueChart() {
+export function RevenueChart({ subscriptions, oneTimePurchases }: { subscriptions: any[] | null, oneTimePurchases: any[] | null }) {
+
+  const chartData = useMemo(() => {
+    const months = Array.from({ length: 12 }, (_, i) => subMonths(new Date(), i)).reverse();
+
+    return months.map(month => {
+      const monthStart = startOfMonth(month);
+      const monthEnd = endOfMonth(month);
+      let monthlyRevenue = 0;
+
+      subscriptions?.forEach(sub => {
+        const subStartDate = new Date(sub.startDate);
+        if (subStartDate <= monthEnd && (!sub.endDate || new Date(sub.endDate) > monthStart)) {
+          monthlyRevenue += sub.mrr;
+        }
+      });
+      
+      oneTimePurchases?.forEach(otp => {
+        const purchaseDate = new Date(otp.purchaseDate);
+        if (purchaseDate >= monthStart && purchaseDate <= monthEnd) {
+          monthlyRevenue += otp.amount;
+        }
+      });
+
+      return {
+        month: format(month, 'MMMM'),
+        revenue: monthlyRevenue,
+      };
+    });
+  }, [subscriptions, oneTimePurchases]);
+
+  if (!subscriptions && !oneTimePurchases) {
+    return <div className="h-[350px] w-full flex items-center justify-center text-muted-foreground">Loading chart data...</div>
+  }
+
   return (
     <div className="h-[350px] w-full">
       <ResponsiveContainer width="100%" height="100%">
@@ -51,7 +72,7 @@ export function RevenueChart() {
               fontSize={12}
               tickLine={false}
               axisLine={false}
-              tickFormatter={(value) => `$${value}`}
+              tickFormatter={(value) => `$${value/1000}k`}
             />
             <ChartTooltip
               cursor={false}
