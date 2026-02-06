@@ -9,14 +9,13 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import { initializeApp, cert, getApps } from 'firebase-admin/app';
+import { initializeApp, getApps } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 
 // Initialize Firebase Admin SDK if not already initialized.
-if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY && !getApps().length) {
-  initializeApp({
-    credential: cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY)),
-  });
+// It will automatically use Application Default Credentials in the App Hosting environment.
+if (!getApps().length) {
+  initializeApp();
 }
 
 // Define tools
