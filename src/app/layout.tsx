@@ -1,16 +1,14 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { cn } from '@/lib/utils';
-import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
-import { AppSidebar } from '@/components/dashboard/app-sidebar';
 import { Header } from '@/components/dashboard/header';
 import { Toaster } from '@/components/ui/toaster';
 import { FirebaseClientProvider } from '@/firebase';
 import { AuthProvider } from '@/components/auth/auth-provider';
 
 export const metadata: Metadata = {
-  title: 'SaaSight',
-  description: 'SaaS Startup Forecasting',
+  title: 'The Gauntlet',
+  description: 'Test your video hooks against an army of 10,000 hyper-distracted Gen-Z scrollers.',
 };
 
 export default function RootLayout({
@@ -19,25 +17,22 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className="dark" style={{colorScheme: "dark"}} suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;500;700&display=swap"
           rel="stylesheet"
         />
       </head>
-      <body className={cn('font-body antialiased')}>
+      <body className={cn('font-mono antialiased')}>
         <FirebaseClientProvider>
           <AuthProvider>
-            <SidebarProvider>
-              <AppSidebar />
-              <SidebarInset>
-                <Header />
-                <main className="flex-1 p-4 sm:p-6 lg:p-8">{children}</main>
-              </SidebarInset>
-            </SidebarProvider>
+            <div className="flex flex-col min-h-screen">
+              <Header />
+              <main className="flex-1 container mx-auto p-4 sm:p-6 lg:p-8">{children}</main>
+            </div>
             <Toaster />
           </AuthProvider>
         </FirebaseClientProvider>

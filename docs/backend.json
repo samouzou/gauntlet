@@ -1,320 +1,117 @@
 {
   "entities": {
-    "Organization": {
+    "User": {
       "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Organization",
+      "title": "User",
       "type": "object",
-      "description": "Represents a SaaS customer organization.",
+      "description": "Represents a user of The Gauntlet.",
       "properties": {
-        "name": {
+        "email": {
           "type": "string",
-          "description": "Name of the organization."
+          "format": "email",
+          "description": "The user's email address."
         },
-        "industry": {
+        "displayName": {
           "type": "string",
-          "description": "Industry of the organization."
+          "description": "The user's display name."
+        },
+        "photoURL": {
+          "type": "string",
+          "format": "uri",
+          "description": "URL of the user's profile picture."
         },
         "createdAt": {
           "type": "string",
-          "description": "Timestamp of when the organization was created.",
-          "format": "date-time"
+          "format": "date-time",
+          "description": "Timestamp of when the user account was created."
         },
-        "members": {
-          "type": "object",
-          "description": "A map of user UIDs to their roles within the organization.",
-          "additionalProperties": {
+        "total_runs": {
+          "type": "number",
+          "description": "The total number of Gauntlet runs the user has initiated."
+        },
+        "high_score": {
+          "type": "number",
+          "description": "The user's highest survivability score."
+        },
+        "credits": {
+          "type": "number",
+          "description": "The number of Gauntlet runs the user can initiate."
+        }
+      },
+      "required": ["email", "displayName", "createdAt", "total_runs", "high_score", "credits"]
+    },
+    "GauntletRun": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Gauntlet Run",
+      "type": "object",
+      "description": "Represents a single run of the Gauntlet simulation.",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "The UID of the user who initiated the run."
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of when the run was initiated."
+        },
+        "video_filename": {
             "type": "string",
-            "enum": ["admin", "member"]
+            "description": "The name of the video file uploaded."
+        },
+        "survivability_score": {
+          "type": "number",
+          "description": "The AI-generated survivability score (0-100)."
+        },
+        "death_points": {
+          "type": "array",
+          "description": "Specific points in the video where attention failed.",
+          "items": {
+            "type": "object",
+            "properties": {
+                "timestamp": {"type": "number", "description": "Timestamp in milliseconds of the death point"},
+                "reason": {"type": "string", "description": "The reason for attention failure."}
+            },
+            "required": ["timestamp", "reason"]
           }
+        },
+        "visual_hook_score": {
+            "type": "number"
+        },
+        "audio_hook_score": {
+            "type": "number"
         }
       },
-      "required": [
-        "name",
-        "createdAt",
-        "members"
-      ]
-    },
-    "Subscription": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Subscription",
-      "type": "object",
-      "description": "Represents a customer's subscription to the SaaS service.",
-      "properties": {
-        "planName": {
-          "type": "string",
-          "description": "Name of the subscription plan."
-        },
-        "startDate": {
-          "type": "string",
-          "description": "Date when the subscription started.",
-          "format": "date-time"
-        },
-        "endDate": {
-          "type": "string",
-          "description": "Date when the subscription ends.",
-          "format": "date-time"
-        },
-        "mrr": {
-          "type": "number",
-          "description": "Monthly Recurring Revenue for the subscription."
-        },
-        "churnProbability": {
-          "type": "number",
-          "description": "Probability of churn for this subscription."
-        }
-      },
-      "required": [
-        "planName",
-        "startDate",
-        "mrr"
-      ]
-    },
-    "OneTimePurchase": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "OneTimePurchase",
-      "type": "object",
-      "description": "Represents a one-time purchase made by a customer.",
-      "properties": {
-        "description": {
-          "type": "string",
-          "description": "Description of the purchased item(s)."
-        },
-        "amount": {
-          "type": "number",
-          "description": "Amount of the one-time purchase."
-        },
-        "purchaseDate": {
-          "type": "string",
-          "description": "Date of the one-time purchase.",
-          "format": "date-time"
-        }
-      },
-      "required": [
-        "description",
-        "amount",
-        "purchaseDate"
-      ]
-    },
-    "Expense": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Expense",
-      "type": "object",
-      "description": "Represents an operational or marketing expense.",
-      "properties": {
-        "category": {
-          "type": "string",
-          "description": "Category of the expense (e.g., Marketing, Operational)."
-        },
-        "amount": {
-          "type": "number",
-          "description": "Amount of the expense."
-        },
-        "date": {
-          "type": "string",
-          "description": "Date of the expense.",
-          "format": "date-time"
-        },
-        "description": {
-          "type": "string",
-          "description": "Description of the expense."
-        }
-      },
-      "required": [
-        "category",
-        "amount",
-        "date"
-      ]
-    },
-    "CashFlowProjection": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "CashFlowProjection",
-      "type": "object",
-      "description": "Represents a cash flow projection.",
-      "properties": {
-        "projectionDate": {
-          "type": "string",
-          "description": "The date for which the cash flow is projected.",
-          "format": "date-time"
-        },
-        "projectedRevenue": {
-          "type": "number",
-          "description": "Projected revenue for the period."
-        },
-        "projectedExpenses": {
-          "type": "number",
-          "description": "Projected expenses for the period."
-        },
-        "netCashFlow": {
-          "type": "number",
-          "description": "Net cash flow for the period."
-        }
-      },
-      "required": [
-        "projectionDate",
-        "projectedRevenue",
-        "projectedExpenses",
-        "netCashFlow"
-      ]
-    },
-    "Scenario": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Scenario",
-      "type": "object",
-      "description": "Represents a financial scenario (e.g., best case, worst case, base case).",
-      "properties": {
-        "name": {
-          "type": "string",
-          "description": "Name of the scenario (e.g., Best Case, Worst Case)."
-        },
-        "description": {
-          "type": "string",
-          "description": "Description of the scenario."
-        },
-        "revenueGrowthRate": {
-          "type": "number",
-          "description": "Assumed revenue growth rate for this scenario."
-        },
-        "churnRate": {
-          "type": "number",
-          "description": "Assumed churn rate for this scenario."
-        },
-        "expenseAssumptions": {
-          "type": "string",
-          "description": "Additional assumptions about expenses for this scenario. Stored as stringified json."
-        }
-      },
-      "required": [
-        "name",
-        "revenueGrowthRate",
-        "churnRate"
-      ]
+      "required": ["userId", "timestamp", "video_filename", "survivability_score", "death_points"]
     }
   },
   "auth": {
     "providers": [
-      "password",
-      "anonymous"
+      "google.com"
     ]
   },
   "firestore": {
     "structure": [
       {
-        "path": "/organizations/{organizationId}",
+        "path": "/users/{userId}",
         "definition": {
-          "entityName": "Organization",
+          "entityName": "User",
           "schema": {
-            "$ref": "#/backend/entities/Organization"
+            "$ref": "#/entities/User"
           },
-          "description": "Stores organization details. This is the root level entity for all other data.",
-          "params": [
-            {
-              "name": "organizationId",
-              "description": "The unique identifier for the organization."
-            }
-          ]
+          "description": "Stores public user profile information."
         }
       },
       {
-        "path": "/organizations/{organizationId}/subscriptions/{subscriptionId}",
+        "path": "/users/{userId}/gauntlet_runs/{runId}",
         "definition": {
-          "entityName": "Subscription",
+          "entityName": "GauntletRun",
           "schema": {
-            "$ref": "#/backend/entities/Subscription"
+            "$ref": "#/entities/GauntletRun"
           },
-          "description": "Stores subscription data for an organization.",
-          "params": [
-            {
-              "name": "organizationId",
-              "description": "The unique identifier for the organization."
-            },
-            {
-              "name": "subscriptionId",
-              "description": "The unique identifier for the subscription."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/organizations/{organizationId}/oneTimePurchases/{oneTimePurchaseId}",
-        "definition": {
-          "entityName": "OneTimePurchase",
-          "schema": {
-            "$ref": "#/backend/entities/OneTimePurchase"
-          },
-          "description": "Stores one-time purchase data for an organization.",
-          "params": [
-            {
-              "name": "organizationId",
-              "description": "The unique identifier for the organization."
-            },
-            {
-              "name": "oneTimePurchaseId",
-              "description": "The unique identifier for the one-time purchase."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/organizations/{organizationId}/expenses/{expenseId}",
-        "definition": {
-          "entityName": "Expense",
-          "schema": {
-            "$ref": "#/backend/entities/Expense"
-          },
-          "description": "Stores expense data for an organization.",
-          "params": [
-            {
-              "name": "organizationId",
-              "description": "The unique identifier for the organization."
-            },
-            {
-              "name": "expenseId",
-              "description": "The unique identifier for the expense."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/organizations/{organizationId}/cashFlowProjections/{cashFlowProjectionId}",
-        "definition": {
-          "entityName": "CashFlowProjection",
-          "schema": {
-            "$ref": "#/backend/entities/CashFlowProjection"
-          },
-          "description": "Stores cash flow projection data for an organization.",
-          "params": [
-            {
-              "name": "organizationId",
-              "description": "The unique identifier for the organization."
-            },
-            {
-              "name": "cashFlowProjectionId",
-              "description": "The unique identifier for the cash flow projection."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/organizations/{organizationId}/scenarios/{scenarioId}",
-        "definition": {
-          "entityName": "Scenario",
-          "schema": {
-            "$ref": "#/backend/entities/Scenario"
-          },
-          "description": "Stores scenario data for an organization.",
-          "params": [
-            {
-              "name": "organizationId",
-              "description": "The unique identifier for the organization."
-            },
-            {
-              "name": "scenarioId",
-              "description": "The unique identifier for the scenario."
-            }
-          ]
+          "description": "Stores the results of each Gauntlet run for a user."
         }
       }
-    ],
-    "reasoning": "The Firestore data structure is designed to support a SaaS financial forecasting application ('SaaSight') with a focus on subscription forecasting, one-time purchase tracking, expense management, churn prediction, cash flow projections, and scenario planning. The structure is organized around the central entity, 'Organization', using hierarchical paths to ensure clear ownership and security.  Each Organization owns Subscriptions, OneTimePurchases, Expenses, CashFlowProjections and Scenarios.  This design prioritizes authorization independence by avoiding `get()` calls in security rules, clarity, and scalability.\n\n**Authorization Independence & QAPs:** Authorization independence is achieved by structuring the data around Organizations. All data related to an Organization resides under the `/organizations/{organizationId}` path, ensuring that security rules can be applied at the collection level without needing to fetch parent documents. This eliminates hierarchical authorization dependencies. Segregation of data by organization also allows for efficient and secure `list` operations, satisfying QAPs.\n\n**Path-Based Ownership:** All entities owned by an organization are stored within that organization's document.  This pattern is simple and robust.\n\n**Data Clarity and Predictability:** Entities have explicit `id` fields, timestamps, and semantic naming conventions are followed. Avoid dynamic keys and enforce radical consistency."
+    ]
   }
 }

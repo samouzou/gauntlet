@@ -1,79 +1,62 @@
 'use client';
 
-import { useUser, useFirebase, initiateAnonymousSignIn, setDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase';
+import { useUser, useFirebase, setDocumentNonBlocking } from '@/firebase';
 import { useEffect, useState } from 'react';
-import { doc, collection, query, where, getDocs, serverTimestamp } from 'firebase/firestore';
-import { subMonths } from 'date-fns';
+import { doc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { Loader2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { user, isUserLoading } = useUser();
-  const { auth, firestore } = useFirebase();
-  const [isOrgLoading, setIsOrgLoading] = useState(true);
+  const { firestore } = useFirebase();
+  const router = useRouter();
+  const [isAuthReady, setIsAuthReady] = useState(false);
 
   useEffect(() => {
-    if (!isUserLoading && !user) {
-      initiateAnonymousSignIn(auth);
+    if (isUserLoading) {
+      return; // Wait until user state is resolved
     }
-  }, [user, isUserLoading, auth]);
 
-  useEffect(() => {
+    if (!user) {
+        // If no user and not loading, auth is "ready" (we know there's no user)
+        setIsAuthReady(true);
+        return;
+    }
+
     if (user && firestore) {
-      const orgsRef = collection(firestore, 'organizations');
-      const q = query(orgsRef, where(`members.${user.uid}`, 'in', ['admin', 'member']));
-      
-      getDocs(q).then((snapshot) => {
-        if (snapshot.empty) {
-          // No org found, create one.
-          const newOrgRef = doc(collection(firestore, 'organizations'));
-          const newOrg = {
-            name: 'My New SaaS',
-            industry: 'Software',
+      const userRef = doc(firestore, 'users', user.uid);
+      getDoc(userRef).then((docSnap) => {
+        if (!docSnap.exists()) {
+          // User is authenticated, but no user document exists. Create one.
+          const newUser = {
+            email: user.email,
+            displayName: user.displayName,
+            photoURL: user.photoURL,
             createdAt: serverTimestamp(),
-            members: {
-              [user.uid]: 'admin',
-            },
+            total_runs: 0,
+            high_score: 0,
+            credits: 5, // Start with 5 free credits
           };
-          setDocumentNonBlocking(newOrgRef, newOrg, {});
-
-          // Add sample data
-          const subsCollection = collection(firestore, 'organizations', newOrgRef.id, 'subscriptions');
-          addDocumentNonBlocking(subsCollection, {
-              planName: 'Basic',
-              startDate: subMonths(new Date(), 6).toISOString(),
-              mrr: 49,
-              churnProbability: 0.05
-          });
-          addDocumentNonBlocking(subsCollection, {
-              planName: 'Pro',
-              startDate: subMonths(new Date(), 2).toISOString(),
-              mrr: 99,
-              churnProbability: 0.02
-          });
-
-          const purchasesCollection = collection(firestore, 'organizations', newOrgRef.id, 'oneTimePurchases');
-          addDocumentNonBlocking(purchasesCollection, {
-              description: 'Setup Fee',
-              amount: 500,
-              purchaseDate: subMonths(new Date(), 6).toISOString()
-          });
+          setDocumentNonBlocking(userRef, newUser, { merge: true });
         }
-        setIsOrgLoading(false);
+        setIsAuthReady(true);
+      }).catch(error => {
+        console.error("Error checking for user document:", error);
+        // Handle error, maybe sign out user or show error message
+        setIsAuthReady(true); // Proceed anyway to not block app
       });
-    } else if (!isUserLoading) {
-      setIsOrgLoading(false);
     }
-  }, [user, isUserLoading, firestore]);
+  }, [user, isUserLoading, firestore, router]);
   
-  if (isUserLoading || isOrgLoading) {
-      return (
-        <div className="flex h-screen w-full items-center justify-center">
-            <div className="flex flex-col items-center gap-2">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                <p className="text-muted-foreground">Setting things up...</p>
-            </div>
+  if (!isAuthReady) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-2">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-muted-foreground">Authenticating...</p>
         </div>
-      )
+      </div>
+    );
   }
 
   return <>{children}</>;

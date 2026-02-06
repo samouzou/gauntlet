@@ -1,90 +1,134 @@
 'use client';
 
-import { DollarSign, TrendingUp, Users, CreditCard } from 'lucide-react';
-import { KpiCard } from '@/components/dashboard/kpi-card';
-import { RevenueChart } from '@/components/charts/revenue-chart';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, getDocs } from 'firebase/firestore';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 
-export default function DashboardPage() {
-  const { user, firestore } = useFirebase();
-  const [organization, setOrganization] = useState<any>(null);
+import { useUser } from '@/firebase';
+import { runGauntlet, type GauntletOutput } from '@/ai/flows/gauntlet-run-flow';
+import { useToast } from '@/hooks/use-toast';
 
-  useEffect(() => {
-    if (user && firestore) {
-      const orgsRef = collection(firestore, 'organizations');
-      const q = query(orgsRef, where(`members.${user.uid}`, 'in', ['admin', 'member']));
-      getDocs(q).then((snapshot) => {
-        if (!snapshot.empty) {
-          const orgDoc = snapshot.docs[0];
-          setOrganization({ id: orgDoc.id, ...orgDoc.data() });
-        }
+import { UploadZone } from '@/components/gauntlet/UploadZone';
+import { SimulationView } from '@/components/gauntlet/SimulationView';
+import { ResultScreen } from '@/components/gauntlet/ResultScreen';
+import { useUserCredits } from '@/hooks/use-user-credits';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Loader2 } from 'lucide-react';
+
+type GauntletState = 'idle' | 'processing' | 'success' | 'error';
+
+export default function GauntletPage() {
+  const { user, isUserLoading } = useUser();
+  const { credits, isLoading: creditsLoading } = useUserCredits();
+  const router = useRouter();
+  const { toast } = useToast();
+
+  const [gauntletState, setGauntletState] = useState<GauntletState>('idle');
+  const [result, setResult] = useState<GauntletOutput | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  if (isUserLoading) {
+    return <div className="text-center p-12">Loading user...</div>;
+  }
+
+  if (!user) {
+    router.push('/login');
+    return null;
+  }
+
+  const handleFileUpload = async (file: File) => {
+    if (credits === 0) {
+      toast({
+        variant: 'destructive',
+        title: 'Out of Credits',
+        description: 'Please purchase more credits to run the gauntlet.',
+      });
+      return;
+    }
+    
+    if (file.size > 10 * 1024 * 1024) { // 10MB
+      toast({
+        variant: 'destructive',
+        title: 'File too large',
+        description: 'Please upload a video under 10MB.',
+      });
+      return
+    }
+
+    setGauntletState('processing');
+    setError(null);
+    setResult(null);
+
+    try {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = async () => {
+        const videoDataUri = reader.result as string;
+        const gauntletResult = await runGauntlet({ videoDataUri, userId: user.uid });
+        setResult(gauntletResult);
+        setGauntletState('success');
+      };
+      reader.onerror = (error) => {
+        throw new Error('Failed to read file.');
+      }
+
+    } catch (e: any) {
+      console.error('Gauntlet run failed:', e);
+      const errorMessage = e.message || 'An unknown error occurred.';
+      setError(errorMessage);
+      setGauntletState('error');
+      toast({
+        variant: 'destructive',
+        title: 'Simulation Failed',
+        description: errorMessage,
       });
     }
-  }, [user, firestore]);
+  };
 
-  const subscriptionsQuery = useMemoFirebase(() => {
-    if (!organization) return null;
-    return collection(firestore, 'organizations', organization.id, 'subscriptions');
-  }, [firestore, organization]);
+  const handleReset = () => {
+    setGauntletState('idle');
+    setResult(null);
+    setError(null);
+  };
+  
+  if (creditsLoading) {
+      return (
+        <div className="flex h-[80vh] w-full items-center justify-center">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      )
+  }
 
-  const onetimePurchasesQuery = useMemoFirebase(() => {
-    if (!organization) return null;
-    return collection(firestore, 'organizations', organization.id, 'oneTimePurchases');
-  }, [firestore, organization]);
-
-  const { data: subscriptions, isLoading: subscriptionsLoading } = useCollection(subscriptionsQuery);
-  const { data: onetimePurchases, isLoading: onetimePurchasesLoading } = useCollection(onetimePurchasesQuery);
-
-  const totalRevenue = subscriptions?.reduce((acc, sub) => acc + sub.mrr, 0) ?? 0;
-  const oneTimeSales = onetimePurchases?.reduce((acc, otp) => acc + otp.amount, 0) ?? 0;
-  const totalSubscriptions = subscriptions?.length ?? 0;
-  const churnRate = subscriptions
-    ? subscriptions.reduce((acc, sub) => acc + (sub.churnProbability ?? 0), 0) / (subscriptions.length || 1)
-    : 0;
-
-  const isLoading = subscriptionsLoading || onetimePurchasesLoading || !organization;
+  if (credits === 0) {
+    return (
+        <div className="flex h-[80vh] w-full items-center justify-center">
+            <Card className="w-full max-w-md text-center">
+                <CardHeader>
+                    <CardTitle>You're out of credits!</CardTitle>
+                    <CardDescription>Purchase more credits to continue running the Gauntlet.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <Button>Buy 5 Credits for $1.99</Button>
+                </CardContent>
+            </Card>
+        </div>
+    )
+  }
 
   return (
-    <div className="space-y-8">
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <KpiCard
-          title="Total Monthly Revenue"
-          value={isLoading ? "..." : `$${(totalRevenue).toLocaleString()}`}
-          change="+20.1% from last month"
-          icon={DollarSign}
-        />
-        <KpiCard
-          title="Subscriptions"
-          value={isLoading ? "..." : `+${totalSubscriptions}`}
-          change="+180.1% from last month"
-          icon={Users}
-        />
-        <KpiCard
-          title="Churn Rate"
-          value={isLoading ? "..." : `${(churnRate * 100).toFixed(1)}%`}
-          change="-1.2% from last month"
-          icon={TrendingUp}
-          invertColor
-        />
-        <KpiCard
-          title="One-time Sales"
-          value={isLoading ? "..." : `+$${oneTimeSales.toLocaleString()}`}
-          change="+19% from last month"
-          icon={CreditCard}
-        />
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Revenue Overview</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <RevenueChart subscriptions={subscriptions} oneTimePurchases={onetimePurchases} />
-        </CardContent>
-      </Card>
+    <div className="w-full max-w-4xl mx-auto">
+      {gauntletState === 'idle' && <UploadZone onFileUpload={handleFileUpload} />}
+      {gauntletState === 'processing' && <SimulationView />}
+      {gauntletState === 'success' && result && (
+        <ResultScreen result={result} onReset={handleReset} />
+      )}
+      {gauntletState === 'error' && (
+        <div className="text-center p-8 bg-card rounded-lg">
+          <h2 className="text-2xl font-bold text-destructive mb-4">Simulation Error</h2>
+          <p className="text-muted-foreground mb-6">{error}</p>
+          <Button onClick={handleReset} variant="secondary">Try Again</Button>
+        </div>
+      )}
     </div>
   );
 }
