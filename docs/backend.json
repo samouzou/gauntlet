@@ -1,0 +1,366 @@
+{
+  "entities": {
+    "Organization": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Organization",
+      "type": "object",
+      "description": "Represents a SaaS customer organization.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the organization."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the organization."
+        },
+        "industry": {
+          "type": "string",
+          "description": "Industry of the organization."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp of when the organization was created.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "createdAt"
+      ]
+    },
+    "Subscription": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Subscription",
+      "type": "object",
+      "description": "Represents a customer's subscription to the SaaS service.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the subscription."
+        },
+        "organizationId": {
+          "type": "string",
+          "description": "Reference to Organization. (Relationship: Organization 1:N Subscription)"
+        },
+        "planName": {
+          "type": "string",
+          "description": "Name of the subscription plan."
+        },
+        "startDate": {
+          "type": "string",
+          "description": "Date when the subscription started.",
+          "format": "date-time"
+        },
+        "endDate": {
+          "type": "string",
+          "description": "Date when the subscription ends.",
+          "format": "date-time"
+        },
+        "mrr": {
+          "type": "number",
+          "description": "Monthly Recurring Revenue for the subscription."
+        },
+        "churnProbability": {
+          "type": "number",
+          "description": "Probability of churn for this subscription."
+        }
+      },
+      "required": [
+        "id",
+        "organizationId",
+        "planName",
+        "startDate",
+        "mrr"
+      ]
+    },
+    "OneTimePurchase": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "OneTimePurchase",
+      "type": "object",
+      "description": "Represents a one-time purchase made by a customer.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the one-time purchase."
+        },
+        "organizationId": {
+          "type": "string",
+          "description": "Reference to Organization. (Relationship: Organization 1:N OneTimePurchase)"
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of the purchased item(s)."
+        },
+        "amount": {
+          "type": "number",
+          "description": "Amount of the one-time purchase."
+        },
+        "purchaseDate": {
+          "type": "string",
+          "description": "Date of the one-time purchase.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "organizationId",
+        "description",
+        "amount",
+        "purchaseDate"
+      ]
+    },
+    "Expense": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Expense",
+      "type": "object",
+      "description": "Represents an operational or marketing expense.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the expense."
+        },
+        "organizationId": {
+          "type": "string",
+          "description": "Reference to Organization. (Relationship: Organization 1:N Expense)"
+        },
+        "category": {
+          "type": "string",
+          "description": "Category of the expense (e.g., Marketing, Operational)."
+        },
+        "amount": {
+          "type": "number",
+          "description": "Amount of the expense."
+        },
+        "date": {
+          "type": "string",
+          "description": "Date of the expense.",
+          "format": "date-time"
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of the expense."
+        }
+      },
+      "required": [
+        "id",
+        "organizationId",
+        "category",
+        "amount",
+        "date"
+      ]
+    },
+    "CashFlowProjection": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "CashFlowProjection",
+      "type": "object",
+      "description": "Represents a cash flow projection.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the projection."
+        },
+        "organizationId": {
+          "type": "string",
+          "description": "Reference to Organization. (Relationship: Organization 1:N CashFlowProjection)"
+        },
+        "projectionDate": {
+          "type": "string",
+          "description": "The date for which the cash flow is projected.",
+          "format": "date-time"
+        },
+        "projectedRevenue": {
+          "type": "number",
+          "description": "Projected revenue for the period."
+        },
+        "projectedExpenses": {
+          "type": "number",
+          "description": "Projected expenses for the period."
+        },
+        "netCashFlow": {
+          "type": "number",
+          "description": "Net cash flow for the period."
+        }
+      },
+      "required": [
+        "id",
+        "organizationId",
+        "projectionDate",
+        "projectedRevenue",
+        "projectedExpenses",
+        "netCashFlow"
+      ]
+    },
+    "Scenario": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Scenario",
+      "type": "object",
+      "description": "Represents a financial scenario (e.g., best case, worst case, base case).",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the scenario."
+        },
+        "organizationId": {
+          "type": "string",
+          "description": "Reference to Organization. (Relationship: Organization 1:N Scenario)"
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the scenario (e.g., Best Case, Worst Case)."
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of the scenario."
+        },
+        "revenueGrowthRate": {
+          "type": "number",
+          "description": "Assumed revenue growth rate for this scenario."
+        },
+        "churnRate": {
+          "type": "number",
+          "description": "Assumed churn rate for this scenario."
+        },
+        "expenseAssumptions": {
+          "type": "string",
+          "description": "Additional assumptions about expenses for this scenario. Stored as stringified json."
+        }
+      },
+      "required": [
+        "id",
+        "organizationId",
+        "name",
+        "revenueGrowthRate",
+        "churnRate"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/organizations/{organizationId}",
+        "definition": {
+          "entityName": "Organization",
+          "schema": {
+            "$ref": "#/backend/entities/Organization"
+          },
+          "description": "Stores organization details. This is the root level entity for all other data.",
+          "params": [
+            {
+              "name": "organizationId",
+              "description": "The unique identifier for the organization."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/organizations/{organizationId}/subscriptions/{subscriptionId}",
+        "definition": {
+          "entityName": "Subscription",
+          "schema": {
+            "$ref": "#/backend/entities/Subscription"
+          },
+          "description": "Stores subscription data for an organization.",
+          "params": [
+            {
+              "name": "organizationId",
+              "description": "The unique identifier for the organization."
+            },
+            {
+              "name": "subscriptionId",
+              "description": "The unique identifier for the subscription."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/organizations/{organizationId}/oneTimePurchases/{oneTimePurchaseId}",
+        "definition": {
+          "entityName": "OneTimePurchase",
+          "schema": {
+            "$ref": "#/backend/entities/OneTimePurchase"
+          },
+          "description": "Stores one-time purchase data for an organization.",
+          "params": [
+            {
+              "name": "organizationId",
+              "description": "The unique identifier for the organization."
+            },
+            {
+              "name": "oneTimePurchaseId",
+              "description": "The unique identifier for the one-time purchase."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/organizations/{organizationId}/expenses/{expenseId}",
+        "definition": {
+          "entityName": "Expense",
+          "schema": {
+            "$ref": "#/backend/entities/Expense"
+          },
+          "description": "Stores expense data for an organization.",
+          "params": [
+            {
+              "name": "organizationId",
+              "description": "The unique identifier for the organization."
+            },
+            {
+              "name": "expenseId",
+              "description": "The unique identifier for the expense."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/organizations/{organizationId}/cashFlowProjections/{cashFlowProjectionId}",
+        "definition": {
+          "entityName": "CashFlowProjection",
+          "schema": {
+            "$ref": "#/backend/entities/CashFlowProjection"
+          },
+          "description": "Stores cash flow projection data for an organization.",
+          "params": [
+            {
+              "name": "organizationId",
+              "description": "The unique identifier for the organization."
+            },
+            {
+              "name": "cashFlowProjectionId",
+              "description": "The unique identifier for the cash flow projection."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/organizations/{organizationId}/scenarios/{scenarioId}",
+        "definition": {
+          "entityName": "Scenario",
+          "schema": {
+            "$ref": "#/backend/entities/Scenario"
+          },
+          "description": "Stores scenario data for an organization.",
+          "params": [
+            {
+              "name": "organizationId",
+              "description": "The unique identifier for the organization."
+            },
+            {
+              "name": "scenarioId",
+              "description": "The unique identifier for the scenario."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore data structure is designed to support a SaaS financial forecasting application ('SaaSight') with a focus on subscription forecasting, one-time purchase tracking, expense management, churn prediction, cash flow projections, and scenario planning. The structure is organized around the central entity, 'Organization', using hierarchical paths to ensure clear ownership and security.  Each Organization owns Subscriptions, OneTimePurchases, Expenses, CashFlowProjections and Scenarios.  This design prioritizes authorization independence by avoiding `get()` calls in security rules, clarity, and scalability.\n\n**Authorization Independence & QAPs:** Authorization independence is achieved by structuring the data around Organizations. All data related to an Organization resides under the `/organizations/{organizationId}` path, ensuring that security rules can be applied at the collection level without needing to fetch parent documents. This eliminates hierarchical authorization dependencies. Segregation of data by organization also allows for efficient and secure `list` operations, satisfying QAPs.\n\n**Path-Based Ownership:** All entities owned by an organization are stored within that organization's document.  This pattern is simple and robust.\n\n**Data Clarity and Predictability:** Entities have explicit `id` fields, timestamps, and semantic naming conventions are followed. Avoid dynamic keys and enforce radical consistency."
+  }
+}

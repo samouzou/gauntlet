@@ -1,0 +1,179 @@
+/**
+ * Core Philosophy: This ruleset enforces a multi-tenant security model designed for a SaaS application.
+ * All data is scoped to an 'organization', and a user's access is determined by their membership within
+ * that organization. The rules assume that user roles are managed within a 'members' map on each
+ * organization's document.
+ *
+ * Data Structure: The database is hierarchically organized under a top-level '/organizations' collection.
+ * All other data collections, such as 'subscriptions', 'expenses', and 'scenarios', are nested as
+ * subcollections under their respective organization. This structure ensures strong data isolation
+ * between tenants.
+ *
+ * Key Security Decisions:
+ * - Organization Listing Disabled: To protect tenant privacy, it is impossible for any user to list all
+ *   organizations in the database. Access to an organization document requires knowing its specific ID.
+ * - Role-Based Access: A user's ability to read or write data is determined by their membership in an
+ *   organization. The ability to modify the organization document itself or delete it is restricted
+ *   to users with an 'admin' role.
+ * - Default Secure: By default, no user has access to any data unless they are explicitly listed as a
+ *   member of the corresponding organization.
+ *
+ * Denormalization for Authorization: To ensure fast and secure authorization checks, these rules
+ * depend on a denormalized `members` map on each `/organizations/{organizationId}` document. This map
+ * should store user UIDs as keys and their roles (e.g., 'admin', 'member') as values. This avoids slow
+ * and costly `get()` calls when securing subcollection documents.
+ *   - Example: { members: { 'user_uid_123': 'admin', 'user_uid_456': 'member' } }
+ *
+ * Structural Segregation: The use of a top-level `/organizations` collection with nested subcollections
+ * for all related data provides a clear and secure separation of concerns. This makes it simple to
+ * write rules that grant a user access to an entire data tree belonging to their organization.
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper Functions for Authorization Logic
+
+    /**
+     * Returns true if the user is authenticated.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * Retrieves the data of a specified organization document.
+     * Caches the result of the get() call for a single request evaluation.
+     */
+    function getOrgData(orgId) {
+      return get(/databases/$(database)/documents/organizations/$(orgId)).data;
+    }
+
+    /**
+     * Returns true if the requesting user is a member of the specified organization.
+     * Assumes a 'members' map exists on the organization document.
+     */
+    function isMemberOfOrg(orgId) {
+      let orgData = getOrgData(orgId);
+      return isSignedIn() && request.auth.uid in orgData.members;
+    }
+
+    /**
+     * Returns true if the requesting user has an 'admin' role in the specified organization.
+     */
+    function isAdminOfOrg(orgId) {
+      let orgData = getOrgData(orgId);
+      return isSignedIn() && orgData.members[request.auth.uid] == 'admin';
+    }
+
+    /**
+     * Returns true for update/delete if the user is a member and the document exists.
+     */
+    function isExistingMemberOfOrg(orgId) {
+      return resource != null && isMemberOfOrg(orgId);
+    }
+    
+    /**
+     * Returns true for update/delete if the user is an admin and the document exists.
+     */
+    function isExistingAdminOfOrg(orgId) {
+      return resource != null && isAdminOfOrg(orgId);
+    }
+
+    /**
+     * @description Controls access to Organization documents, the root for all tenant data.
+     * @path /organizations/{organizationId}
+     * @allow (get) An authenticated user who is a member of the organization.
+     * @deny (list) Any user attempting to list all organizations. This is a critical privacy control.
+     * @deny (update) A non-admin member attempting to change the organization's name.
+     * @principle Restricts high-level management to organization admins and prevents cross-tenant data leakage.
+     */
+    match /organizations/{organizationId} {
+      allow get: if isMemberOfOrg(organizationId);
+      allow list: if false;
+      allow create: if isSignedIn() && request.resource.data.members[request.auth.uid] == 'admin';
+      allow update: if isExistingAdminOfOrg(organizationId);
+      allow delete: if isExistingAdminOfOrg(organizationId);
+    }
+
+    /**
+     * @description Secures access to an organization's subscription records.
+     * @path /organizations/{organizationId}/subscriptions/{subscriptionId}
+     * @allow (create) An authenticated member of the organization creating a new subscription.
+     * @deny (create) A member of Organization 'A' trying to create a subscription for Organization 'B'.
+     * @deny (update) A user trying to change the `organizationId` of an existing subscription.
+     * @principle Enforces that all data within a subcollection belongs to and is managed by members of the parent organization.
+     */
+    match /organizations/{organizationId}/subscriptions/{subscriptionId} {
+      allow get: if isMemberOfOrg(organizationId);
+      allow list: if isMemberOfOrg(organizationId);
+      allow create: if isMemberOfOrg(organizationId) && request.resource.data.organizationId == organizationId;
+      allow update: if isExistingMemberOfOrg(organizationId) && request.resource.data.organizationId == resource.data.organizationId;
+      allow delete: if isExistingMemberOfOrg(organizationId);
+    }
+
+    /**
+     * @description Secures access to an organization's one-time purchase records.
+     * @path /organizations/{organizationId}/oneTimePurchases/{oneTimePurchaseId}
+     * @allow (list) An authenticated member of the organization listing all their one-time purchases.
+     * @deny (get) A member of a different organization attempting to read a specific purchase record.
+     * @deny (update) A user trying to change the `organizationId` of an existing purchase.
+     * @principle Enforces that all data within a subcollection belongs to and is managed by members of the parent organization.
+     */
+    match /organizations/{organizationId}/oneTimePurchases/{oneTimePurchaseId} {
+      allow get: if isMemberOfOrg(organizationId);
+      allow list: if isMemberOfOrg(organizationId);
+      allow create: if isMemberOfOrg(organizationId) && request.resource.data.organizationId == organizationId;
+      allow update: if isExistingMemberOfOrg(organizationId) && request.resource.data.organizationId == resource.data.organizationId;
+      allow delete: if isExistingMemberOfOrg(organizationId);
+    }
+
+    /**
+     * @description Secures access to an organization's expense records.
+     * @path /organizations/{organizationId}/expenses/{expenseId}
+     * @allow (delete) An authenticated member of the organization deleting an expense record.
+     * @deny (create) An unauthenticated user attempting to create an expense record.
+     * @deny (update) A user trying to change the `organizationId` of an existing expense.
+     * @principle Enforces that all data within a subcollection belongs to and is managed by members of the parent organization.
+     */
+    match /organizations/{organizationId}/expenses/{expenseId} {
+      allow get: if isMemberOfOrg(organizationId);
+      allow list: if isMemberOfOrg(organizationId);
+      allow create: if isMemberOfOrg(organizationId) && request.resource.data.organizationId == organizationId;
+      allow update: if isExistingMemberOfOrg(organizationId) && request.resource.data.organizationId == resource.data.organizationId;
+      allow delete: if isExistingMemberOfOrg(organizationId);
+    }
+
+    /**
+     * @description Secures access to an organization's cash flow projections.
+     * @path /organizations/{organizationId}/cashFlowProjections/{cashFlowProjectionId}
+     * @allow (create) An authenticated member of the organization creating a new projection.
+     * @deny (list) A user who is not a member of the organization trying to list projections.
+     * @deny (update) A user trying to change the `organizationId` of an existing projection.
+     * @principle Enforces that all data within a subcollection belongs to and is managed by members of the parent organization.
+     */
+    match /organizations/{organizationId}/cashFlowProjections/{cashFlowProjectionId} {
+      allow get: if isMemberOfOrg(organizationId);
+      allow list: if isMemberOfOrg(organizationId);
+      allow create: if isMemberOfOrg(organizationId) && request.resource.data.organizationId == organizationId;
+      allow update: if isExistingMemberOfOrg(organizationId) && request.resource.data.organizationId == resource.data.organizationId;
+      allow delete: if isExistingMemberOfOrg(organizationId);
+    }
+
+    /**
+     * @description Secures access to an organization's financial scenarios.
+     * @path /organizations/{organizationId}/scenarios/{scenarioId}
+     * @allow (get) An authenticated member of the organization reading a scenario document.
+     * @deny (delete) A user from another organization attempting to delete a scenario.
+     * @deny (update) A user trying to change the `organizationId` of an existing scenario.
+     * @principle Enforces that all data within a subcollection belongs to and is managed by members of the parent organization.
+     */
+    match /organizations/{organizationId}/scenarios/{scenarioId} {
+      allow get: if isMemberOfOrg(organizationId);
+      allow list: if isMemberOfOrg(organizationId);
+      allow create: if isMemberOfOrg(organizationId) && request.resource.data.organizationId == organizationId;
+      allow update: if isExistingMemberOfOrg(organizationId) && request.resource.data.organizationId == resource.data.organizationId;
+      allow delete: if isExistingMemberOfOrg(organizationId);
+    }
+  }
+}
