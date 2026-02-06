@@ -17,30 +17,16 @@ import { signOut } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
 import { useUserCredits } from '@/hooks/use-user-credits';
 import { Flame } from 'lucide-react';
-import { setDocumentNonBlocking } from '@/firebase';
-import { doc, increment } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 
 export function Header() {
-  const { auth, user, firestore } = useFirebase();
+  const { auth, user } = useFirebase();
   const { credits } = useUserCredits();
   const router = useRouter();
-  const { toast } = useToast();
   
   const handleSignOut = () => {
     signOut(auth);
     router.push('/login');
-  };
-
-  const handleAddCredits = async () => {
-    if (!user || !firestore) return;
-    const userRef = doc(firestore, 'users', user.uid);
-    // This is the temporary "add credits" logic.
-    await setDocumentNonBlocking(userRef, { credits: increment(5) }, { merge: true });
-    toast({
-        title: "Credits Added",
-        description: "5 credits have been added to your account.",
-    })
   };
 
   return (
@@ -54,7 +40,6 @@ export function Header() {
 
       {user && (
         <div className="flex items-center gap-4">
-            <Button variant="outline" size="sm" onClick={handleAddCredits}>Add 5 Credits (Test)</Button>
             <div className="flex items-center gap-2 font-mono text-sm border px-3 py-1.5 rounded-md">
               <Flame className="w-4 h-4 text-primary" />
               <span>{credits ?? '...'} Credits</span>

@@ -14,6 +14,7 @@ import { useUserCredits } from '@/hooks/use-user-credits';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2 } from 'lucide-react';
+import { createCheckoutSession } from '@/app/actions/checkout';
 
 type GauntletState = 'idle' | 'processing' | 'success' | 'error';
 
@@ -108,7 +109,12 @@ export default function GauntletPage() {
                     <CardDescription>Purchase more credits to continue running the Gauntlet.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <Button>Buy 5 Credits for $1.99</Button>
+                    <form action={async () => {
+                      if (!user) return;
+                      await createCheckoutSession({ userId: user.uid });
+                    }}>
+                      <Button type="submit">Buy 5 Credits for $1.99</Button>
+                    </form>
                 </CardContent>
             </Card>
         </div>
