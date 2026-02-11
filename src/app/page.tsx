@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-import { useUser } from '@/firebase';
+import { useUser, useCollection, useMemoFirebase } from '@/firebase';
 import { runGauntlet } from '@/app/actions/gauntlet-actions';
 import { type GauntletOutput } from '@/ai/flows/gauntlet-run-flow';
 import { useToast } from '@/hooks/use-toast';
@@ -19,44 +19,12 @@ import { createCheckoutSession } from '@/app/actions/checkout';
 import { RunHistory } from '@/components/dashboard/RunHistory';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-
-type GauntletState = 'idle' | 'processing' | 'success' | 'error';
-
-// Define credit packs
-const creditPacks = [
-  {
-    name: 'Starter Pack',
-    credits: 5,
-    price: 1.99,
-    priceId: 'price_STARTER', // IMPORTANT: Replace with your Stripe Price ID
-    tag: 'Basic',
-  },
-  {
-    name: 'Viral Pack',
-    credits: 20,
-    price: 4.99,
-    priceId: 'price_VIRAL', // IMPORTANT: Replace with your Stripe Price ID
-    tag: 'Most Popular',
-  },
-  {
-    name: 'Strategist Pack',
-    credits: 50,
-    price: 9.99,
-    priceId: 'price_STRATEGIST', // IMPORTANT: Replace with your Stripe Price ID
-    tag: 'Best Value',
-  },
-  {
-    name: 'Agency Pack',
-    credits: 200,
-    price: 29.99,
-    priceId: 'price_AGENCY', // IMPORTANT: Replace with your Stripe Price ID
-    tag: null,
-  },
-];
+import { collection, query, orderBy } from 'firebase/firestore';
+import type { Product } from '@/lib/types';
 
 
 export default function GauntletPage() {
-  const { user, isUserLoading } = useUser();
+  const { user, isUserLoading, firestore } = useFirebase();
   const { credits, isLoading: creditsLoading } = useUserCredits();
   const router = useRouter();
   const { toast } = useToast();
@@ -65,6 +33,13 @@ export default function GauntletPage() {
   const [result, setResult] = useState<GauntletOutput | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isBuying, setIsBuying] = useState<string | null>(null);
+
+  const productsQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return query(collection(firestore, 'products'), orderBy('credit_amount', 'asc'));
+  }, [firestore]);
+
+  const { data: creditPacks, isLoading: productsLoading } = useCollection<Product>(productsQuery);
 
   if (isUserLoading) {
     return <div className="text-center p-12">Loading user...</div>;
@@ -152,7 +127,7 @@ export default function GauntletPage() {
     setError(null);
   };
   
-  if (creditsLoading) {
+  if (creditsLoading || productsLoading) {
       return (
         <div className="flex h-[80vh] w-full items-center justify-center">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -170,25 +145,25 @@ export default function GauntletPage() {
                 </CardHeader>
             </Card>
             <div className="w-full max-w-5xl grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                {creditPacks.map((pack) => (
-                    <Card key={pack.priceId} className={cn("flex flex-col", (pack.tag === 'Most Popular' || pack.tag === 'Best Value') && "border-primary shadow-lg shadow-primary/10")}>
-                        {pack.tag && (
-                            <Badge variant="secondary" className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground">{pack.tag}</Badge>
+                {creditPacks && creditPacks.map((pack) => (
+                    <Card key={pack.stripe_price_id} className={cn("flex flex-col", (pack.display_tag === 'Most Popular' || pack.display_tag === 'Best Value') && "border-primary shadow-lg shadow-primary/10")}>
+                        {pack.display_tag && (
+                            <Badge variant="secondary" className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground">{pack.display_tag}</Badge>
                         )}
                         <CardHeader className="text-center">
                             <CardTitle>{pack.name}</CardTitle>
-                            <CardDescription>{pack.credits} Credits</CardDescription>
+                            <CardDescription>{pack.credit_amount} Credits</CardDescription>
                         </CardHeader>
                         <CardContent className="flex-grow flex flex-col justify-center items-center">
-                           <p className="text-4xl font-bold mb-4">${pack.price}</p>
-                           <form action={() => handlePurchase(pack.priceId)} className="w-full">
+                           <p className="text-4xl font-bold mb-4">${pack.price_usd}</p>
+                           <form action={() => handlePurchase(pack.stripe_price_id)} className="w-full">
                                 <Button 
                                     type="submit" 
                                     className="w-full"
-                                    variant={(pack.tag === 'Most Popular' || pack.tag === 'Best Value') ? 'default' : 'secondary'}
-                                    disabled={isBuying === pack.priceId}
+                                    variant={(pack.display_tag === 'Most Popular' || pack.display_tag === 'Best Value') ? 'default' : 'secondary'}
+                                    disabled={isBuying === pack.stripe_price_id}
                                 >
-                                    {isBuying === pack.priceId && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                    {isBuying === pack.stripe_price_id && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                     Buy Now
                                 </Button>
                             </form>
@@ -196,6 +171,9 @@ export default function GauntletPage() {
                     </Card>
                 ))}
             </div>
+             {creditPacks?.length === 0 && (
+                <p className="text-muted-foreground">No credit packs are available for purchase right now. Please check back later.</p>
+            )}
         </div>
     )
   }

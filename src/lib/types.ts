@@ -14,3 +14,12 @@ export interface GauntletRun {
   visual_hook_score: number;
   audio_hook_score: number;
 }
+
+export interface Product {
+  name: string;
+  stripe_price_id: string;
+  credit_amount: number;
+  price_usd: number;
+  display_tag: string | null;
+  description?: string;
+}
