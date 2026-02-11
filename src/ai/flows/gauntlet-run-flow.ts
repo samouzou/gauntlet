@@ -10,14 +10,9 @@
 import {ai} from '@/ai/genkit';
 import {googleAI} from '@genkit-ai/google-genai';
 import {z} from 'genkit';
-import { initializeApp, getApps } from 'firebase-admin/app';
-import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { adminDb } from '@/firebase/admin';
+import { FieldValue } from 'firebase-admin/firestore';
 
-// Initialize Firebase Admin SDK if not already initialized.
-// It will automatically use Application Default Credentials in the App Hosting environment.
-if (!getApps().length) {
-  initializeApp();
-}
 
 // Define tools
 const decrementCreditsTool = ai.defineTool(
@@ -28,7 +23,6 @@ const decrementCreditsTool = ai.defineTool(
     outputSchema: z.void(),
   },
   async ({userId}) => {
-    const adminDb = getFirestore();
     const userRef = adminDb.collection('users').doc(userId);
     // If this database call fails, the error will propagate and the flow will fail.
     // This ensures credits are decremented before the user receives the result.

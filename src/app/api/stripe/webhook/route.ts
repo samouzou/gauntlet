@@ -1,16 +1,9 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
-import { initializeApp, getApps } from 'firebase-admin/app';
-import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { adminDb } from '@/firebase/admin';
+import { FieldValue } from 'firebase-admin/firestore';
 
-// Initialize Firebase Admin SDK if not already initialized.
-// It will automatically use Application Default Credentials in the App Hosting environment.
-if (!getApps().length) {
-  initializeApp();
-}
-
-const adminDb = getFirestore();
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2024-04-10',
