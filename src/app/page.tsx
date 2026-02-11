@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2 } from 'lucide-react';
 import { createCheckoutSession } from '@/app/actions/checkout';
+import { RunHistory } from '@/components/dashboard/RunHistory';
 
 type GauntletState = 'idle' | 'processing' | 'success' | 'error';
 
@@ -141,6 +142,9 @@ export default function GauntletPage() {
           <Button onClick={handleReset} variant="secondary">Try Again</Button>
         </div>
       )}
+      
+      {/* Show history when not processing */}
+      {gauntletState !== 'processing' && <RunHistory />}
     </div>
   );
 }
