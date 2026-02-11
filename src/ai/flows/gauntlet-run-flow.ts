@@ -2,26 +2,23 @@
 /**
  * @fileOverview An AI agent that analyzes a video hook for user retention.
  *
- * - runGauntlet - A function that handles the video analysis process.
- * - GauntletInput - The input type for the runGauntlet function.
- * - GauntletOutput - The return type for the runGauntlet function.
+ * - runGauntletFlow - The Genkit flow that handles the video analysis.
+ * - GauntletHookInput - The input type for the runGauntletFlow.
+ * - GauntletOutput - The return type for the runGauntletFlow.
  */
 
 import {ai} from '@/ai/genkit';
-import {googleAI} from '@genkit-ai/google-genai';
 import {z} from 'genkit';
-import { adminDb } from '@/firebase/admin';
-import { FieldValue } from 'firebase-admin/firestore';
 
-const GauntletInputSchema = z.object({
+// Input is just the video now
+const GauntletHookInputSchema = z.object({
   videoDataUri: z
     .string()
     .describe(
       "A 5-second video hook, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
     ),
-  userId: z.string().describe('The ID of the user submitting the video.'),
 });
-export type GauntletInput = z.infer<typeof GauntletInputSchema>;
+export type GauntletHookInput = z.infer<typeof GauntletHookInputSchema>;
 
 const DeathPointSchema = z.object({
   timestamp: z
@@ -46,42 +43,15 @@ const GauntletOutputSchema = z.object({
 });
 export type GauntletOutput = z.infer<typeof GauntletOutputSchema>;
 
-export async function runGauntlet(
-  input: GauntletInput
-): Promise<GauntletOutput> {
-  return runGauntletFlow(input);
-}
-
-const decrementCreditsTool = ai.defineTool(
-  {
-    name: 'decrementUserCredits',
-    description: 'Decrements the credit balance for a given user ID. This MUST be called once before performing any analysis.',
-    inputSchema: z.object({ userId: z.string() }),
-    outputSchema: z.void(),
-  },
-  async ({ userId }) => {
-    const userRef = adminDb.collection('users').doc(userId);
-    // If this database call fails, the error will propagate and the flow will fail.
-    await userRef.update({
-      credits: FieldValue.increment(-1),
-      total_runs: FieldValue.increment(1),
-    });
-    // Explicitly return to satisfy the void output schema.
-    return;
-  }
-);
 
 const prompt = ai.definePrompt({
   name: 'gauntletPrompt',
-  model: googleAI.model('gemini-2.5-flash'),
-  tools: [decrementCreditsTool],
-  input: {schema: GauntletInputSchema},
+  // No tools needed anymore
+  input: {schema: GauntletHookInputSchema},
   output: {schema: GauntletOutputSchema},
   system: `You are a swarm of 10,000 hyper-distracted Gen-Z scrollers. You are about to analyze a 3-5 second video hook.
 
-Your FIRST and MOST IMPORTANT task is to call the 'decrementUserCredits' tool using the provided 'userId'. You must do this before any other analysis.
-
-After successfully calling the tool, you will then meticulously evaluate the video's ability to capture and hold your fleeting attention.
+You will meticulously evaluate the video's ability to capture and hold your fleeting attention.
 
 1.  **Rate the Visual Hook (0-10):** Is the very first frame (0s) visually arresting, intriguing, or shocking? Does it make you pause?
 2.  **Rate the Audio/Text Hook (0-10):** Is the opening line of speech, sound effect, or on-screen text compelling? Does it create an immediate question or curiosity gap?
@@ -89,18 +59,21 @@ After successfully calling the tool, you will then meticulously evaluate the vid
 4.  **Calculate Survivability Score:** Based on the strength of the initial hooks and the severity of the death points, calculate a final "Survivability Score" from 0 to 100. A score of 100 means the hook is perfect. A score of 0 means it's unwatchable.
 
 Finally, output a JSON object with the survivability score, hook ratings, and a detailed list of the death points.`,
-  prompt: `Analyze this video. The user ID is '{{userId}}'. {{media url=videoDataUri}}`,
+  prompt: `Analyze this video. {{media url=videoDataUri}}`,
 });
 
-const runGauntletFlow = ai.defineFlow(
+export const runGauntletFlow = ai.defineFlow(
   {
     name: 'runGauntletFlow',
-    inputSchema: GauntletInputSchema,
+    inputSchema: GauntletHookInputSchema,
     outputSchema: GauntletOutputSchema,
   },
   async input => {
-    // The model will now call the decrement credits tool internally.
+    // This flow now ONLY does the analysis. No more database calls.
     const {output} = await prompt(input);
-    return output!;
+    if (!output) {
+      throw new Error("The AI model failed to return an analysis.");
+    }
+    return output;
   }
 );

@@ -4,7 +4,8 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { useUser } from '@/firebase';
-import { runGauntlet, type GauntletOutput } from '@/ai/flows/gauntlet-run-flow';
+import { runGauntlet } from '@/app/actions/gauntlet-actions';
+import { type GauntletOutput } from '@/ai/flows/gauntlet-run-flow';
 import { useToast } from '@/hooks/use-toast';
 
 import { UploadZone } from '@/components/gauntlet/UploadZone';
@@ -65,6 +66,7 @@ export default function GauntletPage() {
       reader.readAsDataURL(file);
       reader.onload = async () => {
         const videoDataUri = reader.result as string;
+        // The function call now calls our new, robust server action
         const gauntletResult = await runGauntlet({ videoDataUri, userId: user.uid });
         setResult(gauntletResult);
         setGauntletState('success');
