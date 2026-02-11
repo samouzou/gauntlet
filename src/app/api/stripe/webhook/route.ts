@@ -13,7 +13,7 @@ if (!getApps().length) {
 const adminDb = getFirestore();
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2024-06-20',
+  apiVersion: '2024-04-10',
 });
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
