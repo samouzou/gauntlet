@@ -33,6 +33,7 @@ export async function createCheckoutSession(props: CreateCheckoutSessionProps) {
                 quantity: 1,
             },
         ],
+        allow_promotion_codes: true,
         mode: 'payment',
         success_url: `${appUrl}/`,
         cancel_url: `${appUrl}/`,
