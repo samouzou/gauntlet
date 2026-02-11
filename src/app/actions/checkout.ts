@@ -9,10 +9,11 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 
 interface CreateCheckoutSessionProps {
     userId: string;
+    priceId: string; // Accept a dynamic price ID
 }
 
 export async function createCheckoutSession(props: CreateCheckoutSessionProps) {
-    const { userId } = props;
+    const { userId, priceId } = props;
 
     if (!userId) {
         throw new Error('User is not authenticated.');
@@ -24,14 +25,7 @@ export async function createCheckoutSession(props: CreateCheckoutSessionProps) {
         payment_method_types: ['card'],
         line_items: [
             {
-                price_data: {
-                    currency: 'usd',
-                    product_data: {
-                        name: '5 Gauntlet Credits',
-                        description: 'Test 5 more video hooks',
-                    },
-                    unit_amount: 199, // $1.99
-                },
+                price: priceId, // Use the dynamic price ID
                 quantity: 1,
             },
         ],

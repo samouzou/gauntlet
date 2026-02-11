@@ -83,6 +83,33 @@
         }
       },
       "required": ["userId", "timestamp", "video_filename", "survivability_score", "death_points"]
+    },
+    "Product": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Product",
+      "type": "object",
+      "description": "Represents a purchasable credit pack.",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "stripe_price_id": {
+          "type": "string"
+        },
+        "credit_amount": {
+          "type": "number"
+        },
+        "price_usd": {
+          "type": "number"
+        },
+        "display_tag": {
+          "type": "string"
+        }
+      },
+      "required": ["name", "stripe_price_id", "credit_amount", "price_usd"]
     }
   },
   "auth": {
@@ -111,6 +138,16 @@
             "$ref": "#/entities/GauntletRun"
           },
           "description": "Stores the results of each Gauntlet run for a user."
+        }
+      },
+      {
+        "path": "/products/{productId}",
+        "definition": {
+            "entityName": "Product",
+            "schema": {
+                "$ref": "#/entities/Product"
+            },
+            "description": "Stores purchasable credit packs and their metadata."
         }
       }
     ]

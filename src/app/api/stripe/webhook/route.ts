@@ -38,11 +38,41 @@ export async function POST(req: NextRequest) {
       console.log(`Checkout session completed for user: ${userId}`);
 
       try {
+        // Retrieve the session with line items to get the price ID
+        const sessionWithLineItems = await stripe.checkout.sessions.retrieve(
+          session.id,
+          { expand: ['line_items'] }
+        );
+
+        const priceId = sessionWithLineItems.line_items?.data[0]?.price?.id;
+
+        if (!priceId) {
+          console.error(`Webhook Error: Could not find price ID for session ${session.id}`);
+          return NextResponse.json({ error: 'Could not determine purchased product.' }, { status: 400 });
+        }
+
+        // Look up the product in our Firestore 'products' collection
+        const productsRef = adminDb.collection('products');
+        const productQuery = await productsRef.where('stripe_price_id', '==', priceId).limit(1).get();
+
+        if (productQuery.empty) {
+          console.error(`Webhook Error: No product found in Firestore with stripe_price_id ${priceId}`);
+          return NextResponse.json({ error: 'Purchased product not found in our system.' }, { status: 400 });
+        }
+        
+        const productData = productQuery.docs[0].data();
+        const creditAmount = productData.credit_amount;
+
+        if (typeof creditAmount !== 'number' || creditAmount <= 0) {
+            console.error(`Webhook Error: Invalid credit_amount for product with price_id ${priceId}`);
+            return NextResponse.json({ error: 'Invalid product configuration.' }, { status: 500 });
+        }
+
         const userRef = adminDb.collection('users').doc(userId);
         await userRef.update({
-          credits: FieldValue.increment(5),
+          credits: FieldValue.increment(creditAmount),
         });
-        console.log(`Successfully added 5 credits to user ${userId}`);
+        console.log(`Successfully added ${creditAmount} credits to user ${userId}`);
         
       } catch (error) {
         console.error('Failed to update user credits:', error);

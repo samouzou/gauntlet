@@ -17,8 +17,36 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Loader2 } from 'lucide-react';
 import { createCheckoutSession } from '@/app/actions/checkout';
 import { RunHistory } from '@/components/dashboard/RunHistory';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 type GauntletState = 'idle' | 'processing' | 'success' | 'error';
+
+// Define credit packs
+const creditPacks = [
+  {
+    name: 'Basic Pack',
+    credits: 20,
+    price: 4.99,
+    priceId: 'price_VIRAL', // IMPORTANT: Replace with your Stripe Price ID
+    tag: null,
+  },
+  {
+    name: 'Viral Pack',
+    credits: 50,
+    price: 9.99,
+    priceId: 'price_STRATEGIST', // IMPORTANT: Replace with your Stripe Price ID
+    tag: 'Most Popular',
+  },
+  {
+    name: 'Agency Pack',
+    credits: 200,
+    price: 29.99,
+    priceId: 'price_AGENCY', // IMPORTANT: Replace with your Stripe Price ID
+    tag: 'Best Value',
+  },
+];
+
 
 export default function GauntletPage() {
   const { user, isUserLoading } = useUser();
@@ -29,6 +57,7 @@ export default function GauntletPage() {
   const [gauntletState, setGauntletState] = useState<GauntletState>('idle');
   const [result, setResult] = useState<GauntletOutput | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isBuying, setIsBuying] = useState<string | null>(null);
 
   if (isUserLoading) {
     return <div className="text-center p-12">Loading user...</div>;
@@ -93,6 +122,23 @@ export default function GauntletPage() {
     }
   };
 
+  const handlePurchase = async (priceId: string) => {
+    if (!user) return;
+    setIsBuying(priceId);
+    try {
+      await createCheckoutSession({ userId: user.uid, priceId });
+    } catch (error) {
+      console.error("Checkout failed", error);
+      toast({
+        variant: "destructive",
+        title: "Checkout Error",
+        description: "Could not initiate the purchase. Please try again."
+      })
+    } finally {
+      setIsBuying(null);
+    }
+  };
+
   const handleReset = () => {
     setGauntletState('idle');
     setResult(null);
@@ -109,21 +155,40 @@ export default function GauntletPage() {
 
   if (credits === 0) {
     return (
-        <div className="flex h-[80vh] w-full items-center justify-center">
-            <Card className="w-full max-w-md text-center">
+        <div className="flex flex-col items-center justify-center min-h-[80vh] w-full text-center p-4">
+            <Card className="w-full max-w-lg mb-8">
                 <CardHeader>
                     <CardTitle>You're out of credits!</CardTitle>
-                    <CardDescription>Purchase more credits to continue running the Gauntlet.</CardDescription>
+                    <CardDescription>Purchase a credit pack to continue running The Gauntlet.</CardDescription>
                 </CardHeader>
-                <CardContent>
-                    <form action={async () => {
-                      if (!user) return;
-                      await createCheckoutSession({ userId: user.uid });
-                    }}>
-                      <Button type="submit">Buy 5 Credits for $1.99</Button>
-                    </form>
-                </CardContent>
             </Card>
+            <div className="w-full max-w-4xl grid grid-cols-1 md:grid-cols-3 gap-6">
+                {creditPacks.map((pack) => (
+                    <Card key={pack.priceId} className={cn("flex flex-col", pack.tag === 'Most Popular' && "border-primary shadow-lg shadow-primary/10")}>
+                        {pack.tag && (
+                            <Badge variant="secondary" className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground">{pack.tag}</Badge>
+                        )}
+                        <CardHeader className="text-center">
+                            <CardTitle>{pack.name}</CardTitle>
+                            <CardDescription>{pack.credits} Credits</CardDescription>
+                        </CardHeader>
+                        <CardContent className="flex-grow flex flex-col justify-center items-center">
+                           <p className="text-4xl font-bold mb-4">${pack.price}</p>
+                           <form action={() => handlePurchase(pack.priceId)} className="w-full">
+                                <Button 
+                                    type="submit" 
+                                    className="w-full"
+                                    variant={pack.tag === 'Most Popular' ? 'default' : 'secondary'}
+                                    disabled={isBuying === pack.priceId}
+                                >
+                                    {isBuying === pack.priceId && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                    Buy Now
+                                </Button>
+                            </form>
+                        </CardContent>
+                    </Card>
+                ))}
+            </div>
         </div>
     )
   }

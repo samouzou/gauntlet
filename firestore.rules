@@ -28,5 +28,12 @@ service cloud.firestore {
       // Nobody can update or delete runs to preserve history.
       allow update, delete: if false;
     }
+
+    match /products/{productId} {
+      // Products should be publicly readable to display purchase options.
+      allow read: if true;
+      // Only admins should be able to create, update, or delete products.
+      allow write: if false;
+    }
   }
 }
