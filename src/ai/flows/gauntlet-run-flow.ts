@@ -13,16 +13,6 @@ import {z} from 'genkit';
 import { adminDb } from '@/firebase/admin';
 import { FieldValue } from 'firebase-admin/firestore';
 
-async function decrementUserCredits(userId: string): Promise<void> {
-  const userRef = adminDb.collection('users').doc(userId);
-  // If this database call fails, the error will propagate and the flow will fail.
-  // This ensures credits are decremented before the user receives the result.
-  await userRef.update({
-    credits: FieldValue.increment(-1),
-    total_runs: FieldValue.increment(1),
-  });
-}
-
 const GauntletInputSchema = z.object({
   videoDataUri: z
     .string()
@@ -62,14 +52,34 @@ export async function runGauntlet(
   return runGauntletFlow(input);
 }
 
+const decrementCreditsTool = ai.defineTool(
+  {
+    name: 'decrementUserCredits',
+    description: 'Decrements the credit balance for a given user ID. This MUST be called once before performing any analysis.',
+    inputSchema: z.object({ userId: z.string() }),
+    outputSchema: z.void(),
+  },
+  async ({ userId }) => {
+    const userRef = adminDb.collection('users').doc(userId);
+    // If this database call fails, the error will propagate and the flow will fail.
+    await userRef.update({
+      credits: FieldValue.increment(-1),
+      total_runs: FieldValue.increment(1),
+    });
+  }
+);
+
 const prompt = ai.definePrompt({
   name: 'gauntletPrompt',
   model: googleAI.model('gemini-2.5-flash'),
+  tools: [decrementCreditsTool],
   input: {schema: GauntletInputSchema},
   output: {schema: GauntletOutputSchema},
   system: `You are a swarm of 10,000 hyper-distracted Gen-Z scrollers. You are about to analyze a 3-5 second video hook.
 
-Your task is to meticulously evaluate the video's ability to capture and hold your fleeting attention.
+Your FIRST and MOST IMPORTANT task is to call the 'decrementUserCredits' tool using the provided 'userId'. You must do this before any other analysis.
+
+After successfully calling the tool, you will then meticulously evaluate the video's ability to capture and hold your fleeting attention.
 
 1.  **Rate the Visual Hook (0-10):** Is the very first frame (0s) visually arresting, intriguing, or shocking? Does it make you pause?
 2.  **Rate the Audio/Text Hook (0-10):** Is the opening line of speech, sound effect, or on-screen text compelling? Does it create an immediate question or curiosity gap?
@@ -77,7 +87,7 @@ Your task is to meticulously evaluate the video's ability to capture and hold yo
 4.  **Calculate Survivability Score:** Based on the strength of the initial hooks and the severity of the death points, calculate a final "Survivability Score" from 0 to 100. A score of 100 means the hook is perfect. A score of 0 means it's unwatchable.
 
 Finally, output a JSON object with the survivability score, hook ratings, and a detailed list of the death points.`,
-  prompt: `Analyze this video: {{media url=videoDataUri}}`,
+  prompt: `Analyze this video. The user ID is '{{userId}}'. {{media url=videoDataUri}}`,
 });
 
 const runGauntletFlow = ai.defineFlow(
@@ -87,9 +97,7 @@ const runGauntletFlow = ai.defineFlow(
     outputSchema: GauntletOutputSchema,
   },
   async input => {
-    // Explicitly decrement credits before running the analysis.
-    await decrementUserCredits(input.userId);
-
+    // The model will now call the decrement credits tool internally.
     const {output} = await prompt(input);
     return output!;
   }
