@@ -66,6 +66,8 @@ const decrementCreditsTool = ai.defineTool(
       credits: FieldValue.increment(-1),
       total_runs: FieldValue.increment(1),
     });
+    // Explicitly return to satisfy the void output schema.
+    return;
   }
 );
 
