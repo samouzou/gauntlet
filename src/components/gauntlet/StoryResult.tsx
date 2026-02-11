@@ -31,6 +31,8 @@ export function StoryResult({ result }: StoryResultProps) {
                     <p className="text-3xl font-bold">{result.audio_hook_score}<span className="text-xl text-muted-foreground">/10</span></p>
                 </div>
             </div>
+
+            <p className="text-sm font-mono text-muted-foreground/50">gauntlet.tryverza.com</p>
         </div>
     )
 }
