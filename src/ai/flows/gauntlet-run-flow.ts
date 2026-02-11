@@ -50,7 +50,7 @@ const prompt = ai.definePrompt({
   // No tools needed anymore
   input: {schema: GauntletHookInputSchema},
   output: {schema: GauntletOutputSchema},
-  model: googleAI.model('gemini-1.5-flash-latest'),
+  model: googleAI.model('gemini-2.5-flash-preview'),
   system: `You are a swarm of 10,000 hyper-distracted Gen-Z scrollers. You are about to analyze a 3-5 second video hook.
 
 You will meticulously evaluate the video's ability to capture and hold your fleeting attention.
