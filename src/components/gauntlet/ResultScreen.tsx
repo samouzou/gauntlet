@@ -6,7 +6,16 @@ import { Separator } from '@/components/ui/separator';
 import type { GauntletOutput } from '@/ai/flows/gauntlet-run-flow';
 import { DeathMap } from './DeathMap';
 import { Share2 } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { StoryResult } from './StoryResult';
+
 
 interface ResultScreenProps {
   result: GauntletOutput;
@@ -14,18 +23,7 @@ interface ResultScreenProps {
 }
 
 export function ResultScreen({ result, onReset }: ResultScreenProps) {
-  const { toast } = useToast();
   const scoreColor = result.survivability_score > 75 ? 'text-green-400' : result.survivability_score > 50 ? 'text-amber-400' : 'text-red-400';
-
-  const handleShare = () => {
-    // In a real app, this would generate an image and use the Web Share API
-    const shareUrl = `https://twitter.com/intent/tweet?text=My%20video%20hook%20survived%20The%20Gauntlet%20with%20a%20${result.survivability_score}%25%20score!%20Can%20you%20beat%20it%3F`;
-    window.open(shareUrl, '_blank');
-    toast({
-      title: "Ready to Share!",
-      description: "A new tab has been opened to share your results."
-    })
-  };
 
   return (
     <div className="flex flex-col gap-8 animate-in fade-in-50 duration-500">
@@ -87,10 +85,23 @@ export function ResultScreen({ result, onReset }: ResultScreenProps) {
       
       <div className="flex justify-center gap-4">
         <Button onClick={onReset} variant="secondary">Run Another Hook</Button>
-        <Button onClick={handleShare}>
-            <Share2 className="mr-2 h-4 w-4" />
-            Share to Story
-        </Button>
+        <Dialog>
+          <DialogTrigger asChild>
+            <Button>
+                <Share2 className="mr-2 h-4 w-4" />
+                Share to Story
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="w-auto p-0 bg-transparent border-none shadow-none">
+             <DialogHeader className="sr-only">
+                <DialogTitle>Share Results</DialogTitle>
+                <DialogDescription>
+                    Your result formatted for a social media story. You can screenshot this to share it.
+                </DialogDescription>
+             </DialogHeader>
+             <StoryResult result={result} />
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
