@@ -1,22 +1,14 @@
-'use server';
-
-import { initializeApp, getApps, getApp, App } from 'firebase-admin/app';
+import { initializeApp, getApps } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 
-let app: App;
-
+// In a Google Cloud environment like App Hosting, initializeApp() without
+// arguments automatically discovers the project credentials.
+// This ensures the Admin SDK is initialized only once.
 if (getApps().length === 0) {
-  // Explicitly initialize with the project ID from the App Hosting environment
-  // to ensure the correct credentials are used.
-  app = initializeApp({
-    projectId: process.env.GCLOUD_PROJECT,
-  });
-} else {
-  // If already initialized, get the existing app instance.
-  app = getApp();
+  initializeApp();
 }
 
-// Pass the specific app instance to getFirestore.
-const adminDb = getFirestore(app);
+// getFirestore() will use the default (and only) app instance.
+const adminDb = getFirestore();
 
 export { adminDb };
