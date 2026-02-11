@@ -28,21 +28,20 @@ const decrementCreditsTool = ai.defineTool(
     outputSchema: z.void(),
   },
   async ({userId}) => {
+    console.log(`Attempting to decrement credits for user: ${userId}`);
     try {
-      if (!getApps().length) {
-        console.error('Firebase Admin SDK not initialized. Skipping credit decrement.');
-        return;
-      }
       const adminDb = getFirestore();
       const userRef = adminDb.collection('users').doc(userId);
       await userRef.update({
         credits: FieldValue.increment(-1),
         total_runs: FieldValue.increment(1),
       });
+      console.log(`Successfully decremented credits for user ${userId}`);
     } catch (e) {
       console.error('Failed to decrement credits:', e);
       // Even if this fails, we don't want to block the flow from returning the result
     }
+    return; // Explicitly return to satisfy void output
   }
 );
 
