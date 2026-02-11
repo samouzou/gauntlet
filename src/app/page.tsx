@@ -25,25 +25,32 @@ type GauntletState = 'idle' | 'processing' | 'success' | 'error';
 // Define credit packs
 const creditPacks = [
   {
-    name: 'Basic Pack',
-    credits: 20,
-    price: 4.99,
-    priceId: 'price_VIRAL', // IMPORTANT: Replace with your Stripe Price ID
-    tag: null,
+    name: 'Starter Pack',
+    credits: 5,
+    price: 1.99,
+    priceId: 'price_STARTER', // IMPORTANT: Replace with your Stripe Price ID
+    tag: 'Basic',
   },
   {
     name: 'Viral Pack',
+    credits: 20,
+    price: 4.99,
+    priceId: 'price_VIRAL', // IMPORTANT: Replace with your Stripe Price ID
+    tag: 'Most Popular',
+  },
+  {
+    name: 'Strategist Pack',
     credits: 50,
     price: 9.99,
     priceId: 'price_STRATEGIST', // IMPORTANT: Replace with your Stripe Price ID
-    tag: 'Most Popular',
+    tag: 'Best Value',
   },
   {
     name: 'Agency Pack',
     credits: 200,
     price: 29.99,
     priceId: 'price_AGENCY', // IMPORTANT: Replace with your Stripe Price ID
-    tag: 'Best Value',
+    tag: null,
   },
 ];
 
@@ -162,9 +169,9 @@ export default function GauntletPage() {
                     <CardDescription>Purchase a credit pack to continue running The Gauntlet.</CardDescription>
                 </CardHeader>
             </Card>
-            <div className="w-full max-w-4xl grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="w-full max-w-5xl grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 {creditPacks.map((pack) => (
-                    <Card key={pack.priceId} className={cn("flex flex-col", pack.tag === 'Most Popular' && "border-primary shadow-lg shadow-primary/10")}>
+                    <Card key={pack.priceId} className={cn("flex flex-col", (pack.tag === 'Most Popular' || pack.tag === 'Best Value') && "border-primary shadow-lg shadow-primary/10")}>
                         {pack.tag && (
                             <Badge variant="secondary" className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground">{pack.tag}</Badge>
                         )}
@@ -178,7 +185,7 @@ export default function GauntletPage() {
                                 <Button 
                                     type="submit" 
                                     className="w-full"
-                                    variant={pack.tag === 'Most Popular' ? 'default' : 'secondary'}
+                                    variant={(pack.tag === 'Most Popular' || pack.tag === 'Best Value') ? 'default' : 'secondary'}
                                     disabled={isBuying === pack.priceId}
                                 >
                                     {isBuying === pack.priceId && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
