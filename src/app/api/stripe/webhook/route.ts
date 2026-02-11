@@ -44,8 +44,7 @@ export async function POST(req: NextRequest) {
         });
         console.log(`Successfully added 5 credits to user ${userId}`);
         
-      } catch (error)
-{
+      } catch (error) {
         console.error('Failed to update user credits:', error);
         // Return a 500 status if the database update fails
         return NextResponse.json({ error: 'Failed to update user credits in database.' }, { status: 500 });
