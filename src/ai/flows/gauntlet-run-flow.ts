@@ -8,6 +8,7 @@
  */
 
 import {ai} from '@/ai/genkit';
+import {googleAI} from '@genkit-ai/google-genai';
 import {z} from 'genkit';
 import { initializeApp, getApps } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
@@ -86,6 +87,7 @@ export async function runGauntlet(
 
 const prompt = ai.definePrompt({
   name: 'gauntletPrompt',
+  model: googleAI.model('gemini-2.5-flash'),
   input: {schema: GauntletInputSchema},
   output: {schema: GauntletOutputSchema},
   tools: [decrementCreditsTool],
