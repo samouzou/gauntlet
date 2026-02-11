@@ -66,8 +66,12 @@ export default function GauntletPage() {
       reader.readAsDataURL(file);
       reader.onload = async () => {
         const videoDataUri = reader.result as string;
-        // The function call now calls our new, robust server action
-        const gauntletResult = await runGauntlet({ videoDataUri, userId: user.uid });
+        // Pass the filename along with the data URI and user ID
+        const gauntletResult = await runGauntlet({ 
+          videoDataUri, 
+          userId: user.uid,
+          videoFilename: file.name
+        });
         setResult(gauntletResult);
         setGauntletState('success');
       };
