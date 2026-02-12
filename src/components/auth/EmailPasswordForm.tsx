@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useFirebase } from '@/firebase';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, sendEmailVerification, signInWithEmailAndPassword } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import {
@@ -46,7 +46,14 @@ export function EmailPasswordForm() {
       if (mode === 'signIn') {
         await signInWithEmailAndPassword(auth, values.email, values.password);
       } else {
-        await createUserWithEmailAndPassword(auth, values.email, values.password);
+        const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
+        if (userCredential.user) {
+          await sendEmailVerification(userCredential.user);
+          toast({
+            title: "Verification Email Sent",
+            description: "Please check your inbox to finish signing up.",
+          });
+        }
       }
       // The onAuthStateChanged listener in AuthProvider will handle the redirect on success.
     } catch (error: any) {

@@ -51,6 +51,13 @@ export default function GauntletPage() {
     return null;
   }
 
+  // For email/password users, require email verification before allowing access.
+  const isEmailPasswordUser = user.providerData.some(p => p.providerId === 'password');
+  if (isEmailPasswordUser && !user.emailVerified) {
+    router.push('/verify-email');
+    return null;
+  }
+
   const handleFileUpload = async (file: File) => {
     if (credits === 0) {
       toast({

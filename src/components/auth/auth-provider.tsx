@@ -24,27 +24,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (user && firestore) {
-      const userRef = doc(firestore, 'users', user.uid);
-      getDoc(userRef).then((docSnap) => {
-        if (!docSnap.exists()) {
-          // User is authenticated, but no user document exists. Create one.
-          const newUser = {
-            email: user.email,
-            displayName: user.displayName,
-            photoURL: user.photoURL,
-            createdAt: serverTimestamp(),
-            total_runs: 0,
-            high_score: 0,
-            credits: 5, // Start with 5 free credits
-          };
-          setDocumentNonBlocking(userRef, newUser, { merge: true });
-        }
-        setIsAuthReady(true);
-      }).catch(error => {
-        console.error("Error checking for user document:", error);
-        // Handle error, maybe sign out user or show error message
-        setIsAuthReady(true); // Proceed anyway to not block app
-      });
+      const isEmailPasswordUser = user.providerData.some(p => p.providerId === 'password');
+      
+      // For email/password users, we only proceed if they are verified.
+      // Other providers (like Google) are assumed to be verified.
+      if (!isEmailPasswordUser || user.emailVerified) {
+        const userRef = doc(firestore, 'users', user.uid);
+        getDoc(userRef).then((docSnap) => {
+          if (!docSnap.exists()) {
+            // User is authenticated and verified, but no user document exists. Create one.
+            const newUser = {
+              email: user.email,
+              displayName: user.displayName,
+              photoURL: user.photoURL,
+              createdAt: serverTimestamp(),
+              total_runs: 0,
+              high_score: 0,
+              credits: 5, // Grant credits only when doc is created
+            };
+            setDocumentNonBlocking(userRef, newUser, { merge: true });
+          }
+          setIsAuthReady(true);
+        }).catch(error => {
+          console.error("Error checking for user document:", error);
+          setIsAuthReady(true); // Proceed anyway to not block app
+        });
+      } else {
+          // The user is an unverified email/password user.
+          // The app is "ready" but the UI will redirect them.
+          setIsAuthReady(true);
+      }
     }
   }, [user, isUserLoading, firestore, router]);
   
