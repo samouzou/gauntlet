@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-import { useFirebase, useUser, useCollection, useMemoFirebase } from '@/firebase';
+import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { runGauntlet } from '@/app/actions/gauntlet-actions';
 import { type GauntletOutput } from '@/ai/flows/gauntlet-run-flow';
 import { useToast } from '@/hooks/use-toast';
@@ -146,31 +146,49 @@ export default function GauntletPage() {
                 </CardHeader>
             </Card>
             <div className="w-full max-w-5xl grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                {creditPacks && creditPacks.map((pack) => (
-                    <Card key={pack.stripe_price_id} className={cn("flex flex-col", (pack.display_tag === 'Most Popular' || pack.display_tag === 'Best Value') && "border-primary shadow-lg shadow-primary/10")}>
-                        {pack.display_tag && (
-                            <Badge variant="secondary" className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground">{pack.display_tag}</Badge>
-                        )}
-                        <CardHeader className="text-center">
-                            <CardTitle>{pack.name}</CardTitle>
-                            <CardDescription>{pack.credit_amount} Credits</CardDescription>
-                        </CardHeader>
-                        <CardContent className="flex-grow flex flex-col justify-center items-center">
-                           <p className="text-4xl font-bold mb-4">${pack.price_usd}</p>
-                           <form action={() => handlePurchase(pack.stripe_price_id)} className="w-full">
-                                <Button 
-                                    type="submit" 
-                                    className="w-full"
-                                    variant={(pack.display_tag === 'Most Popular' || pack.display_tag === 'Best Value') ? 'default' : 'secondary'}
-                                    disabled={isBuying === pack.stripe_price_id}
+                {creditPacks && creditPacks.map((pack) => {
+                    const isMostPopular = pack.display_tag === 'Most Popular';
+                    const isBestValue = pack.display_tag === 'Best Value';
+
+                    return (
+                        <Card key={pack.stripe_price_id} className={cn(
+                            "flex flex-col relative", 
+                            isBestValue && "border-primary shadow-lg shadow-primary/10",
+                            isMostPopular && "border-accent shadow-lg shadow-accent/10"
+                        )}>
+                            {pack.display_tag && (
+                                <Badge 
+                                    variant="secondary" 
+                                    className={cn(
+                                        "absolute -top-3 left-1/2 -translate-x-1/2",
+                                        isBestValue && "bg-primary text-primary-foreground",
+                                        isMostPopular && "bg-accent text-accent-foreground",
+                                    )}
                                 >
-                                    {isBuying === pack.stripe_price_id && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                    Buy Now
-                                </Button>
-                            </form>
-                        </CardContent>
-                    </Card>
-                ))}
+                                    {pack.display_tag}
+                                </Badge>
+                            )}
+                            <CardHeader className="text-center pt-8">
+                                <CardTitle>{pack.name}</CardTitle>
+                                <CardDescription>{pack.credit_amount} Credits</CardDescription>
+                            </CardHeader>
+                            <CardContent className="flex-grow flex flex-col justify-center items-center">
+                               <p className="text-4xl font-bold mb-4">${pack.price_usd}</p>
+                               <form action={() => handlePurchase(pack.stripe_price_id)} className="w-full">
+                                    <Button 
+                                        type="submit" 
+                                        className="w-full"
+                                        variant={(isBestValue || isMostPopular) ? 'default' : 'secondary'}
+                                        disabled={isBuying === pack.stripe_price_id}
+                                    >
+                                        {isBuying === pack.stripe_price_id && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                        Buy Now
+                                    </Button>
+                                </form>
+                            </CardContent>
+                        </Card>
+                    )
+                })}
             </div>
              {creditPacks?.length === 0 && (
                 <p className="text-muted-foreground">No credit packs are available for purchase right now. Please check back later.</p>
