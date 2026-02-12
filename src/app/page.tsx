@@ -142,7 +142,7 @@ export default function GauntletPage() {
             <Card className="w-full max-w-lg mb-8">
                 <CardHeader>
                     <CardTitle>You're out of credits!</CardTitle>
-                    <CardDescription>Purchase a credit pack to continue running The Gauntlet.</CardDescription>
+                    <CardDescription>Don't let the hook die. Refill your credits to find your next viral hit.</CardDescription>
                 </CardHeader>
             </Card>
             <div className="w-full max-w-5xl grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -178,7 +178,7 @@ export default function GauntletPage() {
                                     <Button 
                                         type="submit" 
                                         className="w-full"
-                                        variant={(isBestValue || isMostPopular) ? 'default' : 'secondary'}
+                                        variant={isBestValue ? 'default' : isMostPopular ? 'default' : 'secondary'}
                                         disabled={isBuying === pack.stripe_price_id}
                                     >
                                         {isBuying === pack.stripe_price_id && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
