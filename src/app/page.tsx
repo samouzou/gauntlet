@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-import { useUser, useCollection, useMemoFirebase } from '@/firebase';
+import { useFirebase, useUser, useCollection, useMemoFirebase } from '@/firebase';
 import { runGauntlet } from '@/app/actions/gauntlet-actions';
 import { type GauntletOutput } from '@/ai/flows/gauntlet-run-flow';
 import { useToast } from '@/hooks/use-toast';
@@ -23,6 +23,7 @@ import { collection, query, orderBy } from 'firebase/firestore';
 import type { Product } from '@/lib/types';
 
 
+type GauntletState = 'idle' | 'processing' | 'success' | 'error';
 export default function GauntletPage() {
   const { user, isUserLoading, firestore } = useFirebase();
   const { credits, isLoading: creditsLoading } = useUserCredits();
