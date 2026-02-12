@@ -139,12 +139,15 @@ export default function GauntletPage() {
   if (credits === 0) {
     return (
         <div className="flex flex-col items-center justify-center min-h-[80vh] w-full text-center p-4">
-            <Card className="w-full max-w-lg mb-8">
+            <Card className="w-full max-w-2xl mb-8">
                 <CardHeader>
-                    <CardTitle>You're out of credits!</CardTitle>
-                    <CardDescription>Don't let the hook die. Refill your credits to find your next viral hit.</CardDescription>
+                    <CardTitle className="text-3xl font-bold tracking-tighter">Don’t let the hook die.</CardTitle>
+                    <CardDescription className="text-md text-muted-foreground pt-2">
+                        You’ve run out of credits. Refill now to find your next viral hit before the inspiration fades.
+                    </CardDescription>
                 </CardHeader>
             </Card>
+            <p className="mb-8 font-medium">Pick a pack below to keep the momentum going:</p>
             <div className="w-full max-w-5xl grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 {creditPacks && creditPacks.map((pack) => {
                     const isMostPopular = pack.display_tag === 'Most Popular';
