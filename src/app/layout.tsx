@@ -33,9 +33,12 @@ export default function RootLayout({
               <Header />
               <main className="flex-1 container mx-auto p-4 sm:p-6 lg:p-8">{children}</main>
               <footer className="py-6 border-t border-border/50">
-                <div className="container mx-auto flex justify-center items-center gap-6 text-sm text-muted-foreground">
-                  <a href="https://www.tryverza.com/privacy-policy" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">Privacy Policy</a>
-                  <a href="https://www.tryverza.com/terms-of-service" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">Terms of Service</a>
+                <div className="container mx-auto flex flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
+                  <p>The Gauntlet, a project by <a href="https://www.tryverza.com" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">Verza Technologies, Inc.</a></p>
+                  <div className="flex items-center gap-4">
+                    <a href="https://www.tryverza.com/privacy-policy" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">Privacy Policy</a>
+                    <a href="https://www.tryverza.com/terms-of-service" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">Terms of Service</a>
+                  </div>
                 </div>
               </footer>
             </div>
