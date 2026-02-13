@@ -1,5 +1,6 @@
 'use server';
 
+import { Buffer } from 'buffer';
 import { adminDb } from '@/firebase/admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { runGauntletFlow, type GauntletOutput } from '@/ai/flows/gauntlet-run-flow';
