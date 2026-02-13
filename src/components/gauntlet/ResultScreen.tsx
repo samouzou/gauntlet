@@ -1,7 +1,7 @@
 'use client';
 
-import { useRef, useCallback } from 'react';
-import { toPng } from 'html-to-image';
+import { useRef, useCallback, useState, useEffect } from 'react';
+import { toPng, toBlob } from 'html-to-image';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dialog"
 import { StoryResult } from './StoryResult';
 import { useToast } from '@/hooks/use-toast';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 
 interface ResultScreenProps {
@@ -31,9 +32,19 @@ export function ResultScreen({ result, onReset }: ResultScreenProps) {
 
   const storyRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+  const isMobile = useIsMobile();
+  const [canShareNatively, setCanShareNatively] = useState(false);
 
-  const handleDownloadImage = useCallback(() => {
-    if (storyRef.current === null) {
+  useEffect(() => {
+    if (isMobile && navigator.share) {
+      setCanShareNatively(true);
+    } else {
+      setCanShareNatively(false);
+    }
+  }, [isMobile]);
+
+  const handleShareOrDownload = useCallback(async () => {
+    if (!storyRef.current) {
       toast({
         variant: 'destructive',
         title: 'Error',
@@ -42,22 +53,39 @@ export function ResultScreen({ result, onReset }: ResultScreenProps) {
       return;
     }
 
-    toPng(storyRef.current, { cacheBust: true, pixelRatio: 2 })
-      .then((dataUrl) => {
+    try {
+      const blob = await toBlob(storyRef.current, { cacheBust: true, pixelRatio: 2 });
+      if (!blob) {
+        throw new Error('Failed to create image blob.');
+      }
+      const file = new File([blob], 'gauntlet-result.png', { type: blob.type });
+
+      if (canShareNatively && navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: 'My Gauntlet Score!',
+          text: `I scored ${result.survivability_score}% on The Gauntlet. See if your hooks survive!`,
+        });
+      } else {
+        // Fallback to download for desktop
+        const dataUrl = await toPng(storyRef.current, { cacheBust: true, pixelRatio: 2 });
         const link = document.createElement('a');
         link.download = 'gauntlet-result.png';
         link.href = dataUrl;
         link.click();
-      })
-      .catch((err) => {
-        console.error('Failed to generate image:', err);
-        toast({
-          variant: "destructive",
-          title: "Image Generation Failed",
-          description: "Could not create the shareable image. Please try again."
-        });
+      }
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        return; // User cancelled the share sheet
+      }
+      console.error('Failed to share/download image:', err);
+      toast({
+        variant: "destructive",
+        title: "Action Failed",
+        description: "Could not share or download the image. Please try again."
       });
-  }, [storyRef, toast]);
+    }
+  }, [storyRef, toast, canShareNatively, result.survivability_score]);
 
   return (
     <div className="flex flex-col gap-8 animate-in fade-in-50 duration-500">
@@ -137,9 +165,18 @@ export function ResultScreen({ result, onReset }: ResultScreenProps) {
                 <StoryResult result={result} />
              </div>
              <DialogFooter className="absolute bottom-4 left-1/2 -translate-x-1/2">
-                <Button onClick={handleDownloadImage} size="lg">
-                    <Download className="mr-2 h-5 w-5" />
-                    Download
+                <Button onClick={handleShareOrDownload} size="lg">
+                    {canShareNatively ? (
+                      <>
+                        <Share2 className="mr-2 h-5 w-5" />
+                        Share
+                      </>
+                    ) : (
+                      <>
+                        <Download className="mr-2 h-5 w-5" />
+                        Download
+                      </>
+                    )}
                 </Button>
              </DialogFooter>
           </DialogContent>
