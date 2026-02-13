@@ -1,20 +1,24 @@
 'use client';
 
+import { useRef, useCallback } from 'react';
+import { toPng } from 'html-to-image';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import type { GauntletOutput } from '@/ai/flows/gauntlet-run-flow';
 import { DeathMap } from './DeathMap';
-import { Share2 } from 'lucide-react';
+import { Download, Share2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { StoryResult } from './StoryResult';
+import { useToast } from '@/hooks/use-toast';
 
 
 interface ResultScreenProps {
@@ -24,6 +28,36 @@ interface ResultScreenProps {
 
 export function ResultScreen({ result, onReset }: ResultScreenProps) {
   const scoreColor = result.survivability_score > 75 ? 'text-green-400' : result.survivability_score > 50 ? 'text-amber-400' : 'text-red-400';
+
+  const storyRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
+
+  const handleDownloadImage = useCallback(() => {
+    if (storyRef.current === null) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Could not find the story element to capture.',
+      });
+      return;
+    }
+
+    toPng(storyRef.current, { cacheBust: true, pixelRatio: 2 })
+      .then((dataUrl) => {
+        const link = document.createElement('a');
+        link.download = 'gauntlet-result.png';
+        link.href = dataUrl;
+        link.click();
+      })
+      .catch((err) => {
+        console.error('Failed to generate image:', err);
+        toast({
+          variant: "destructive",
+          title: "Image Generation Failed",
+          description: "Could not create the shareable image. Please try again."
+        });
+      });
+  }, [storyRef, toast]);
 
   return (
     <div className="flex flex-col gap-8 animate-in fade-in-50 duration-500">
@@ -96,10 +130,18 @@ export function ResultScreen({ result, onReset }: ResultScreenProps) {
              <DialogHeader className="sr-only">
                 <DialogTitle>Share Results</DialogTitle>
                 <DialogDescription>
-                    Your result formatted for a social media story. You can screenshot this to share it.
+                    Your result formatted for a social media story. Download the image below to share.
                 </DialogDescription>
              </DialogHeader>
-             <StoryResult result={result} />
+             <div ref={storyRef}>
+                <StoryResult result={result} />
+             </div>
+             <DialogFooter className="absolute bottom-4 left-1/2 -translate-x-1/2">
+                <Button onClick={handleDownloadImage} size="lg">
+                    <Download className="mr-2 h-5 w-5" />
+                    Download
+                </Button>
+             </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>
