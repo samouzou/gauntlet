@@ -4,16 +4,16 @@ import { adminDb } from '@/firebase/admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { runGauntletFlow, type GauntletOutput } from '@/ai/flows/gauntlet-run-flow';
 
-interface RunGauntletProps {
-  videoDataUri: string;
-  videoFilename: string;
-  userId: string;
-}
-
 export async function runGauntlet(
-  props: RunGauntletProps
+  formData: FormData
 ): Promise<GauntletOutput> {
-  const { userId, videoDataUri, videoFilename } = props;
+  const file = formData.get('video') as File | null;
+  const userId = formData.get('userId') as string | null;
+
+  if (!file) {
+    throw new Error('No video file provided.');
+  }
+  const videoFilename = file.name;
 
   if (!userId) {
     throw new Error('User is not authenticated.');
@@ -32,6 +32,12 @@ export async function runGauntlet(
       throw new Error("You don't have enough credits to run the gauntlet.");
   }
   
+  // Convert the File object to a Buffer, then to a base64 data URI on the server.
+  // This is more robust than using the client-side FileReader.
+  const buffer = await file.arrayBuffer();
+  const base64 = Buffer.from(buffer).toString('base64');
+  const videoDataUri = `data:${file.type};base64,${base64}`;
+
   // Step 1: Run the AI analysis flow first. This is the most time-consuming step.
   const analysisResult = await runGauntletFlow({ videoDataUri });
 

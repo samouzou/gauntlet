@@ -82,22 +82,15 @@ export default function GauntletPage() {
     setResult(null);
 
     try {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = async () => {
-        const videoDataUri = reader.result as string;
-        // Pass the filename along with the data URI and user ID
-        const gauntletResult = await runGauntlet({ 
-          videoDataUri, 
-          userId: user.uid,
-          videoFilename: file.name
-        });
-        setResult(gauntletResult);
-        setGauntletState('success');
-      };
-      reader.onerror = (error) => {
-        throw new Error('Failed to read file.');
-      }
+      // Instead of using FileReader, we'll send the file directly
+      // to the server action using FormData.
+      const formData = new FormData();
+      formData.append('video', file);
+      formData.append('userId', user.uid);
+
+      const gauntletResult = await runGauntlet(formData);
+      setResult(gauntletResult);
+      setGauntletState('success');
 
     } catch (e: any) {
       console.error('Gauntlet run failed:', e);
