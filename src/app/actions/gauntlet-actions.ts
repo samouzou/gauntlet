@@ -21,10 +21,26 @@ export async function runGauntlet(
   }
   
   const userRef = adminDb.collection('users').doc(userId);
-  const userDoc = await userRef.get();
+  
+  // Add a retry mechanism to handle potential replication delays for new users.
+  let userDoc;
+  let attempts = 0;
+  const maxAttempts = 3;
+  const delay = 500; // ms
 
-  if (!userDoc.exists) {
-      throw new Error('User not found.');
+  while (attempts < maxAttempts) {
+    userDoc = await userRef.get();
+    if (userDoc.exists) {
+      break; // Found the doc, exit loop
+    }
+    attempts++;
+    if (attempts < maxAttempts) {
+      await new Promise(res => setTimeout(res, delay));
+    }
+  }
+
+  if (!userDoc || !userDoc.exists) {
+      throw new Error('User data not found. Please try again in a moment.');
   }
 
   const userData = userDoc.data()!;
