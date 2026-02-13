@@ -33,7 +33,7 @@ export function UploadZone({ onFileUpload }: UploadZoneProps) {
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    accept: { 'video/mp4': ['.mp4'], 'video/quicktime': ['.mov'] },
+    accept: { 'video/mp4': ['.mp4'], 'video/quicktime': ['.mov', '.qt'], 'video/x-quicktime': ['.mov'], },
     maxFiles: 1,
     maxSize: 10 * 1024 * 1024, // 10MB
   });
