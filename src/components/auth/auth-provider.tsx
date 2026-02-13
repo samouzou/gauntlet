@@ -1,8 +1,8 @@
 'use client';
 
-import { useUser, useFirebase, setDocumentNonBlocking } from '@/firebase';
+import { useUser, useFirebase } from '@/firebase';
 import { useEffect, useState } from 'react';
-import { doc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
@@ -30,25 +30,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Other providers (like Google) are assumed to be verified.
       if (!isEmailPasswordUser || user.emailVerified) {
         const userRef = doc(firestore, 'users', user.uid);
-        getDoc(userRef).then((docSnap) => {
-          if (!docSnap.exists()) {
-            // User is authenticated and verified, but no user document exists. Create one.
-            const newUser = {
-              email: user.email,
-              displayName: user.displayName,
-              photoURL: user.photoURL,
-              createdAt: serverTimestamp(),
-              total_runs: 0,
-              high_score: 0,
-              credits: 5, // Grant credits only when doc is created
-            };
-            setDocumentNonBlocking(userRef, newUser, { merge: true });
-          }
-          setIsAuthReady(true);
-        }).catch(error => {
-          console.error("Error checking for user document:", error);
-          setIsAuthReady(true); // Proceed anyway to not block app
-        });
+        
+        const checkAndCreateUserDoc = async () => {
+            try {
+                const docSnap = await getDoc(userRef);
+                if (!docSnap.exists()) {
+                    // User is authenticated and verified, but no user document exists. Create one.
+                    const newUser = {
+                        email: user.email,
+                        displayName: user.displayName,
+                        photoURL: user.photoURL,
+                        createdAt: serverTimestamp(),
+                        total_runs: 0,
+                        high_score: 0,
+                        credits: 5, // Grant credits only when doc is created
+                    };
+                    await setDoc(userRef, newUser, { merge: true });
+                }
+            } catch (error) {
+                console.error("Error ensuring user document exists:", error);
+            } finally {
+                setIsAuthReady(true);
+            }
+        };
+        
+        checkAndCreateUserDoc();
+
       } else {
           // The user is an unverified email/password user.
           // The app is "ready" but the UI will redirect them.
