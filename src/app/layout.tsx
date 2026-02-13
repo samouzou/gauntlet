@@ -32,6 +32,12 @@ export default function RootLayout({
             <div className="flex flex-col min-h-screen">
               <Header />
               <main className="flex-1 container mx-auto p-4 sm:p-6 lg:p-8">{children}</main>
+              <footer className="py-6 border-t border-border/50">
+                <div className="container mx-auto flex justify-center items-center gap-6 text-sm text-muted-foreground">
+                  <a href="https://www.tryverza.com/privacy-policy" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">Privacy Policy</a>
+                  <a href="https://www.tryverza.com/terms-of-service" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">Terms of Service</a>
+                </div>
+              </footer>
             </div>
             <Toaster />
           </AuthProvider>
