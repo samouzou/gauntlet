@@ -6,9 +6,32 @@ import { Toaster } from '@/components/ui/toaster';
 import { FirebaseClientProvider } from '@/firebase';
 import { AuthProvider } from '@/components/auth/auth-provider';
 
+const title = 'The Gauntlet by Verza';
+const description = 'Stress-test your video hooks against 10,000 hyper-distracted AI agents. Get an instant survivability score and find your next viral hit before you post.';
+const url = 'https://gauntlet.tryverza.com';
+
+
 export const metadata: Metadata = {
-  title: 'The Gauntlet',
-  description: 'Test your video hooks against an army of 10,000 hyper-distracted Gen-Z scrollers.',
+  metadataBase: new URL(url),
+  title: {
+    default: title,
+    template: `%s | ${title}`,
+  },
+  description: description,
+  keywords: ['video hook analysis', 'virality score', 'social media marketing', 'gen-z attention', 'creator tools', 'tiktok', 'instagram reels'],
+  openGraph: {
+    title: title,
+    description: description,
+    url: url,
+    siteName: title,
+    locale: 'en_US',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: title,
+    description: description,
+  },
 };
 
 export default function RootLayout({
