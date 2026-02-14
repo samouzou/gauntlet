@@ -136,77 +136,80 @@ export default function GauntletPage() {
       )
   }
 
-  if (credits === 0) {
-    return (
-        <div className="flex flex-col items-center justify-center min-h-[80vh] w-full text-center p-4">
-            <Card className="w-full max-w-2xl mb-8">
-                <CardHeader>
-                    <CardTitle className="text-3xl font-bold tracking-tighter">Don’t let the hook die.</CardTitle>
-                    <CardDescription className="text-md text-muted-foreground pt-2">
-                        You’ve run out of credits. Refill now to find your next viral hit before the inspiration fades.
-                    </CardDescription>
-                </CardHeader>
-            </Card>
-            <p className="mb-8 font-medium">Pick a pack below to keep the momentum going:</p>
-            <div className="w-full max-w-5xl grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                {creditPacks && creditPacks.map((pack) => {
-                    const isMostPopular = pack.display_tag === 'Most Popular';
-                    const isBestValue = pack.display_tag === 'Best Value';
-
-                    return (
-                        <Card key={pack.stripe_price_id} className={cn(
-                            "flex flex-col relative", 
-                            isBestValue && "border-primary shadow-lg shadow-primary/10",
-                            isMostPopular && "border-accent shadow-lg shadow-accent/10"
-                        )}>
-                            {pack.display_tag && (
-                                <Badge 
-                                    variant="secondary" 
-                                    className={cn(
-                                        "absolute -top-3 left-1/2 -translate-x-1/2",
-                                        isBestValue && "bg-primary text-primary-foreground",
-                                        isMostPopular && "bg-accent text-accent-foreground",
-                                    )}
-                                >
-                                    {pack.display_tag}
-                                </Badge>
-                            )}
-                            <CardHeader className="text-center pt-8">
-                                <CardTitle>{pack.name}</CardTitle>
-                                <CardDescription>{pack.credit_amount} Credits</CardDescription>
-                            </CardHeader>
-                            <CardContent className="flex-grow flex flex-col justify-center items-center">
-                               <p className="text-4xl font-bold mb-4">${pack.price_usd}</p>
-                               <form action={() => handlePurchase(pack.stripe_price_id)} className="w-full">
-                                    <Button 
-                                        type="submit" 
-                                        className="w-full"
-                                        variant={isBestValue ? 'default' : isMostPopular ? 'default' : 'secondary'}
-                                        disabled={isBuying === pack.stripe_price_id}
-                                    >
-                                        {isBuying === pack.stripe_price_id && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                        Buy Now
-                                    </Button>
-                                </form>
-                            </CardContent>
-                        </Card>
-                    )
-                })}
-            </div>
-             {creditPacks?.length === 0 && (
-                <p className="text-muted-foreground">No credit packs are available for purchase right now. Please check back later.</p>
-            )}
-        </div>
-    )
-  }
-
   return (
     <div className="w-full max-w-4xl mx-auto">
-      {gauntletState === 'idle' && <UploadZone onFileUpload={handleFileUpload} />}
+      {gauntletState === 'idle' && (
+        credits === 0 ? (
+            <div className="flex flex-col items-center justify-center min-h-[80vh] w-full text-center p-4">
+                <Card className="w-full max-w-2xl mb-8">
+                    <CardHeader>
+                        <CardTitle className="text-3xl font-bold tracking-tighter">Don’t let the hook die.</CardTitle>
+                        <CardDescription className="text-md text-muted-foreground pt-2">
+                            You’ve run out of credits. Refill now to find your next viral hit before the inspiration fades.
+                        </CardDescription>
+                    </CardHeader>
+                </Card>
+                <p className="mb-8 font-medium">Pick a pack below to keep the momentum going:</p>
+                <div className="w-full max-w-5xl grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                    {creditPacks && creditPacks.map((pack) => {
+                        const isMostPopular = pack.display_tag === 'Most Popular';
+                        const isBestValue = pack.display_tag === 'Best Value';
+
+                        return (
+                            <Card key={pack.stripe_price_id} className={cn(
+                                "flex flex-col relative", 
+                                isBestValue && "border-primary shadow-lg shadow-primary/10",
+                                isMostPopular && "border-accent shadow-lg shadow-accent/10"
+                            )}>
+                                {pack.display_tag && (
+                                    <Badge 
+                                        variant="secondary" 
+                                        className={cn(
+                                            "absolute -top-3 left-1/2 -translate-x-1/2",
+                                            isBestValue && "bg-primary text-primary-foreground",
+                                            isMostPopular && "bg-accent text-accent-foreground",
+                                        )}
+                                    >
+                                        {pack.display_tag}
+                                    </Badge>
+                                )}
+                                <CardHeader className="text-center pt-8">
+                                    <CardTitle>{pack.name}</CardTitle>
+                                    <CardDescription>{pack.credit_amount} Credits</CardDescription>
+                                </CardHeader>
+                                <CardContent className="flex-grow flex flex-col justify-center items-center">
+                                   <p className="text-4xl font-bold mb-4">${pack.price_usd}</p>
+                                   <form action={() => handlePurchase(pack.stripe_price_id)} className="w-full">
+                                        <Button 
+                                            type="submit" 
+                                            className="w-full"
+                                            variant={isBestValue ? 'default' : isMostPopular ? 'default' : 'secondary'}
+                                            disabled={isBuying === pack.stripe_price_id}
+                                        >
+                                            {isBuying === pack.stripe_price_id && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                            Buy Now
+                                        </Button>
+                                    </form>
+                                </CardContent>
+                            </Card>
+                        )
+                    })}
+                </div>
+                 {creditPacks?.length === 0 && (
+                    <p className="text-muted-foreground">No credit packs are available for purchase right now. Please check back later.</p>
+                )}
+            </div>
+        ) : (
+            <UploadZone onFileUpload={handleFileUpload} />
+        )
+      )}
+
       {gauntletState === 'processing' && <SimulationView />}
+      
       {gauntletState === 'success' && result && (
         <ResultScreen result={result} onReset={handleReset} />
       )}
+      
       {gauntletState === 'error' && (
         <div className="text-center p-8 bg-card rounded-lg">
           <h2 className="text-2xl font-bold text-destructive mb-4">Simulation Error</h2>
