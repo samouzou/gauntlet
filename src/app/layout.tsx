@@ -39,6 +39,21 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const jsonLd = {
+      '@context': 'https://schema.org',
+      '@type': 'WebApplication',
+      name: title,
+      url: url,
+      description: description,
+      applicationCategory: 'MultimediaApplication',
+      operatingSystem: 'Any', // Indicates it's a web application accessible on any OS
+      offers: {
+        '@type': 'Offer',
+        price: '0', // The initial offering of free credits is free
+        priceCurrency: 'USD',
+      },
+  };
+  
   return (
     <html lang="en" className="dark" style={{colorScheme: "dark"}} suppressHydrationWarning>
       <head>
@@ -47,6 +62,10 @@ export default function RootLayout({
         <link
           href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;500;700&display=swap"
           rel="stylesheet"
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
       </head>
       <body className={cn('font-mono antialiased')}>
