@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
@@ -42,20 +42,24 @@ export default function GauntletPage() {
 
   const { data: creditPacks, isLoading: productsLoading } = useCollection<Product>(productsQuery);
 
-  if (isUserLoading) {
+  useEffect(() => {
+    if (isUserLoading) return; // Wait until user status is resolved
+
+    if (!user) {
+      router.push('/login');
+      return;
+    }
+
+    // For email/password users, require email verification before allowing access.
+    const isEmailPasswordUser = user.providerData.some(p => p.providerId === 'password');
+    if (isEmailPasswordUser && !user.emailVerified) {
+      router.push('/verify-email');
+    }
+  }, [user, isUserLoading, router]);
+
+  // Show a loading state while user is loading, or if we are about to redirect.
+  if (isUserLoading || !user || (user && user.providerData.some(p => p.providerId === 'password') && !user.emailVerified)) {
     return <div className="text-center p-12">Loading user...</div>;
-  }
-
-  if (!user) {
-    router.push('/login');
-    return null;
-  }
-
-  // For email/password users, require email verification before allowing access.
-  const isEmailPasswordUser = user.providerData.some(p => p.providerId === 'password');
-  if (isEmailPasswordUser && !user.emailVerified) {
-    router.push('/verify-email');
-    return null;
   }
 
   const handleFileUpload = async (file: File) => {
