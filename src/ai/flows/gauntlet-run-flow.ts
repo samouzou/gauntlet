@@ -16,7 +16,7 @@ const GauntletHookInputSchema = z.object({
   videoDataUri: z
     .string()
     .describe(
-      "A 5-second video hook, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
+      "A 3-10 second video hook, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
     ),
 });
 export type GauntletHookInput = z.infer<typeof GauntletHookInputSchema>;
@@ -51,7 +51,7 @@ const prompt = ai.definePrompt({
   input: {schema: GauntletHookInputSchema},
   output: {schema: GauntletOutputSchema},
   model: googleAI.model('gemini-3-flash-preview'),
-  system: `You are a swarm of 10,000 hyper-distracted Gen-Z scrollers. You are about to analyze a 3-5 second video hook.
+  system: `You are a swarm of 10,000 hyper-distracted Gen-Z scrollers. You are about to analyze a 3-10 second video hook.
 
 You will meticulously evaluate the video's ability to capture and hold your fleeting attention.
 

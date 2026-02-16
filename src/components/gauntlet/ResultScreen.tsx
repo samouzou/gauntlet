@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useCallback, useState, useEffect } from 'react';
+import { useRef, useCallback, useState, useEffect, useMemo } from 'react';
 import { toPng, toBlob } from 'html-to-image';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -34,6 +34,16 @@ export function ResultScreen({ result, onReset }: ResultScreenProps) {
   const { toast } = useToast();
   const isMobile = useIsMobile();
   const [canShareNatively, setCanShareNatively] = useState(false);
+
+  const analysisDuration = useMemo(() => {
+    if (!result.death_points || result.death_points.length === 0) {
+      return 5000; // Default if no points
+    }
+    const maxTimestamp = Math.max(...result.death_points.map(p => p.timestamp));
+    // Use a base of at least 5 seconds, then round up to the nearest second.
+    const baseDuration = Math.max(maxTimestamp, 5000);
+    return Math.ceil(baseDuration / 1000) * 1000;
+  }, [result.death_points]);
 
   useEffect(() => {
     if (isMobile && navigator.share) {
@@ -132,7 +142,7 @@ export function ResultScreen({ result, onReset }: ResultScreenProps) {
             <CardTitle className="text-lg">Attention Analysis</CardTitle>
         </CardHeader>
         <CardContent>
-            <DeathMap deathPoints={result.death_points} />
+            <DeathMap deathPoints={result.death_points} duration={analysisDuration} />
             <Separator className="my-6" />
             <ul className="space-y-4">
                 {result.death_points.map((point, index) => (

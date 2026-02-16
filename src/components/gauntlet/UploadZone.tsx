@@ -42,7 +42,7 @@ export function UploadZone({ onFileUpload }: UploadZoneProps) {
     <div className="flex flex-col items-center justify-center text-center p-4">
         <h1 className="text-4xl font-bold tracking-tighter mb-2 text-primary">RUN THE GAUNTLET</h1>
         <p className="text-muted-foreground max-w-md mb-8">
-            Upload a 3-5 second video hook. We'll simulate its performance against 10,000 hyper-distracted Gen-Z scrollers to see if it survives.
+            Upload a 3-10 second video hook. We'll simulate its performance against 10,000 hyper-distracted Gen-Z scrollers to see if it survives.
         </p>
         <div
           {...getRootProps()}
@@ -61,7 +61,7 @@ export function UploadZone({ onFileUpload }: UploadZoneProps) {
                 <p className="text-muted-foreground">Drag & drop or click to upload</p>
               </div>
             )}
-            <p className="text-xs text-muted-foreground mt-4">MP4 or MOV, max 10MB, 3-5 seconds</p>
+            <p className="text-xs text-muted-foreground mt-4">MP4 or MOV, max 10MB, 3-10 seconds</p>
           </div>
         </div>
     </div>
