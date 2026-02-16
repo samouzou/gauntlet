@@ -34,19 +34,21 @@ export default function VerifyEmailPage() {
   useEffect(() => {
     // This adds a listener that will auto-reload the user
     // state when the user comes back to the page after verification.
-    // The `onAuthStateChanged` in the provider will handle the update.
     if (auth) {
         const unsubscribe = auth.onIdTokenChanged(async (user) => {
             if (user) {
                 await user.reload();
                 if (user.emailVerified) {
-                    router.push('/');
+                    // A hard refresh to the home page is necessary to ensure all state,
+                    // including the user's newly granted credits, is correctly loaded
+                    // after email verification.
+                    window.location.assign('/');
                 }
             }
         });
         return () => unsubscribe();
     }
-  }, [auth, router]);
+  }, [auth]);
 
   const handleResendVerification = async () => {
     if (!user) return;
@@ -70,6 +72,7 @@ export default function VerifyEmailPage() {
   };
 
   const handleSignOut = () => {
+      if (!auth) return;
       signOut(auth).then(() => {
           router.push('/login');
       });
