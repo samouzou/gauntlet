@@ -72,11 +72,11 @@ export default function GauntletPage() {
       return;
     }
     
-    if (file.size > 10 * 1024 * 1024) { // 10MB
+    if (file.size > 25 * 1024 * 1024) { // 25MB
       toast({
         variant: 'destructive',
         title: 'File too large',
-        description: 'Please upload a video under 10MB.',
+        description: 'Please upload a video under 25MB.',
       });
       return
     }

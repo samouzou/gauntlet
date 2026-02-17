@@ -35,7 +35,7 @@ export function UploadZone({ onFileUpload }: UploadZoneProps) {
     onDrop,
     accept: { 'video/mp4': ['.mp4'], 'video/quicktime': ['.mov', '.qt'], 'video/x-quicktime': ['.mov'], },
     maxFiles: 1,
-    maxSize: 10 * 1024 * 1024, // 10MB
+    maxSize: 25 * 1024 * 1024, // 25MB
   });
 
   return (
@@ -61,7 +61,7 @@ export function UploadZone({ onFileUpload }: UploadZoneProps) {
                 <p className="text-muted-foreground">Drag & drop or click to upload</p>
               </div>
             )}
-            <p className="text-xs text-muted-foreground mt-4">MP4 or MOV, max 10MB, 3-10 seconds</p>
+            <p className="text-xs text-muted-foreground mt-4">MP4 or MOV, max 25MB, 3-10 seconds</p>
           </div>
         </div>
     </div>
