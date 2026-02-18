@@ -37,15 +37,16 @@ export function ResultScreen({ result, onReset }: ResultScreenProps) {
 
   const analysisDuration = useMemo(() => {
     if (!result.death_points || result.death_points.length === 0) {
-      return 5000; // Default if no points
+      return 10000; // Default if no points
     }
     const maxTimestamp = Math.max(...result.death_points.map(p => p.timestamp));
-    // Use a base of at least 5 seconds, then round up to the nearest second.
-    const baseDuration = Math.max(maxTimestamp, 5000);
+    // Use a base of at least 10 seconds, then round up to the nearest second.
+    const baseDuration = Math.max(maxTimestamp, 10000);
     return Math.ceil(baseDuration / 1000) * 1000;
   }, [result.death_points]);
 
   useEffect(() => {
+    // navigator.share is only available on mobile and in secure contexts (HTTPS)
     if (isMobile && navigator.share) {
       setCanShareNatively(true);
     } else {
@@ -62,6 +63,23 @@ export function ResultScreen({ result, onReset }: ResultScreenProps) {
       });
       return;
     }
+    
+    const fallbackToDownload = async () => {
+      try {
+        const dataUrl = await toPng(storyRef.current, { cacheBust: true, pixelRatio: 2 });
+        const link = document.createElement('a');
+        link.download = 'gauntlet-result.png';
+        link.href = dataUrl;
+        link.click();
+      } catch (downloadErr) {
+          console.error('Fallback to download failed:', downloadErr);
+          toast({
+            variant: "destructive",
+            title: "Download Failed",
+            description: "Could not create the image for download. Please try again."
+          });
+      }
+    };
 
     try {
       const blob = await toBlob(storyRef.current, { cacheBust: true, pixelRatio: 2 });
@@ -70,29 +88,34 @@ export function ResultScreen({ result, onReset }: ResultScreenProps) {
       }
       const file = new File([blob], 'gauntlet-result.png', { type: blob.type });
 
-      if (canShareNatively && navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({
-          files: [file],
-          title: 'My Gauntlet Score!',
-          text: `I scored ${result.survivability_score}% on The Gauntlet. See if your hooks survive!`,
-        });
+      // The `navigator.canShare({ files: ... })` API can be unreliable on Android.
+      // A more robust pattern is to try sharing and fall back to downloading if it fails.
+      if (canShareNatively) {
+        try {
+            await navigator.share({
+              files: [file],
+              title: 'My Gauntlet Score!',
+              text: `I scored ${result.survivability_score}% on The Gauntlet. See if your hooks survive!`,
+            });
+        } catch (err: any) {
+            if (err.name === 'AbortError') {
+              return; // User cancelled share, this is not an error.
+            }
+            // If sharing files fails, proceed to the download fallback.
+            console.warn('Native file sharing failed, falling back to download:', err);
+            await fallbackToDownload();
+        }
       } else {
-        // Fallback to download for desktop
-        const dataUrl = await toPng(storyRef.current, { cacheBust: true, pixelRatio: 2 });
-        const link = document.createElement('a');
-        link.download = 'gauntlet-result.png';
-        link.href = dataUrl;
-        link.click();
+        // Fallback for desktop or browsers that don't support navigator.share
+        await fallbackToDownload();
       }
     } catch (err: any) {
-      if (err.name === 'AbortError') {
-        return; // User cancelled the share sheet
-      }
-      console.error('Failed to share/download image:', err);
+      // This will catch errors from toBlob or other unexpected issues.
+      console.error('Failed to prepare image for sharing/downloading:', err);
       toast({
         variant: "destructive",
         title: "Action Failed",
-        description: "Could not share or download the image. Please try again."
+        description: "Could not prepare the result image. Please try again."
       });
     }
   }, [storyRef, toast, canShareNatively, result.survivability_score]);
