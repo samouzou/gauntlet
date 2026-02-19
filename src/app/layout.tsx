@@ -1,3 +1,4 @@
+
 import type { Metadata } from 'next';
 import Script from 'next/script';
 import './globals.css';
@@ -63,6 +64,7 @@ export default function RootLayout({
         <link
           href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;500;700&display=swap"
           rel="stylesheet"
+          crossOrigin="anonymous"
         />
         <script
           type="application/ld+json"
