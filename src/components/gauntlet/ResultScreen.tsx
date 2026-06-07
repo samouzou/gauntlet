@@ -28,7 +28,7 @@ interface ResultScreenProps {
 }
 
 export function ResultScreen({ result, onReset }: ResultScreenProps) {
-  const scoreColor = result.survivability_score > 75 ? 'text-green-400' : result.survivability_score > 50 ? 'text-amber-400' : 'text-red-400';
+  const scoreColor = result.survivability_score > 75 ? 'text-warm-amber' : result.survivability_score > 50 ? 'text-amber-400' : 'text-red-400';
 
   const storyRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
@@ -122,7 +122,7 @@ export function ResultScreen({ result, onReset }: ResultScreenProps) {
 
   return (
     <div className="flex flex-col gap-8 animate-in fade-in-50 duration-500">
-      <Card className="bg-zinc-900/50 border-zinc-800">
+      <Card className="bg-forge-ink-muted/50 border-forge-ink-border">
         <CardHeader>
           <CardTitle className="text-center text-sm font-medium tracking-widest text-muted-foreground">
             SURVIVABILITY SCORE

@@ -4,33 +4,34 @@
 
 @layer base {
   :root {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    
-    --primary: 35 91% 55%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    /* Gauntlet sub-brand: Forge Ink base + Warm Amber accent */
+    --background: 158 43% 5%;
+    --foreground: 40 15% 92%;
 
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    
-    --accent: 142 76% 36%;
-    --accent-foreground: 210 40% 98%;
-    
+    --card: 158 35% 7%;
+    --card-foreground: 40 15% 92%;
+
+    --popover: 158 35% 7%;
+    --popover-foreground: 40 15% 92%;
+
+    --primary: 32 96% 61%;
+    --primary-foreground: 158 43% 8%;
+
+    --secondary: 158 25% 12%;
+    --secondary-foreground: 40 15% 92%;
+
+    --muted: 158 20% 12%;
+    --muted-foreground: 158 10% 55%;
+
+    --accent: 32 60% 20%;
+    --accent-foreground: 32 96% 70%;
+
     --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive-foreground: 40 15% 92%;
 
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 35 91% 55%;
+    --border: 158 20% 15%;
+    --input: 158 20% 15%;
+    --ring: 32 96% 61%;
 
     --radius: 0.5rem;
   }

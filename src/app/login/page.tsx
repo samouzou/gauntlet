@@ -35,15 +35,15 @@ export default function LoginPage() {
             </p>
             <ul className="space-y-4 text-foreground">
                 <li className="flex items-center gap-3">
-                    <CheckCircle className="w-5 h-5 text-accent"/>
+                    <CheckCircle className="w-5 h-5 text-primary"/>
                     <span>Instant survivability score (0-100%).</span>
                 </li>
                 <li className="flex items-center gap-3">
-                    <CheckCircle className="w-5 h-5 text-accent"/>
+                    <CheckCircle className="w-5 h-5 text-primary"/>
                     <span>Pinpoint "Death Points" where attention fails.</span>
                 </li>
                 <li className="flex items-center gap-3">
-                    <CheckCircle className="w-5 h-5 text-accent"/>
+                    <CheckCircle className="w-5 h-5 text-primary"/>
                     <span>Rate your visual and audio hooks independently.</span>
                 </li>
             </ul>

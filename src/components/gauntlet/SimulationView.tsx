@@ -8,7 +8,7 @@ export function SimulationView() {
 
   return (
     <div className="flex flex-col items-center justify-center text-center p-4 animate-in fade-in-50 duration-500">
-        <Card className="max-w-lg bg-zinc-900/50 border-zinc-800">
+        <Card className="max-w-lg bg-forge-ink-muted/50 border-forge-ink-border">
             <CardHeader>
                 <CardTitle className="flex items-center justify-center gap-2">
                     <Loader2 className="animate-spin h-5 w-5" />

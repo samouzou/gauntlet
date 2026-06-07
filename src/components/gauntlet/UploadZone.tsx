@@ -47,7 +47,7 @@ export function UploadZone({ onFileUpload }: UploadZoneProps) {
         <div
           {...getRootProps()}
           className={`w-full max-w-lg cursor-pointer rounded-xl border-4 border-dashed p-12 transition-colors ${
-            isDragActive ? 'border-primary bg-primary/10' : 'border-input hover:border-primary/50'
+            isDragActive ? 'border-warm-amber bg-warm-amber/10' : 'border-input hover:border-warm-amber/50'
           }`}
         >
           <input {...getInputProps()} />
