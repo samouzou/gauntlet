@@ -54,6 +54,17 @@ export default {
           DEFAULT: 'hsl(var(--card))',
           foreground: 'hsl(var(--card-foreground))',
         },
+        'warm-amber': {
+          DEFAULT: '#FB923C',
+          foreground: '#07120E',
+          muted: 'hsl(32 50% 18%)',
+        },
+        'forge-ink': {
+          DEFAULT: '#07120E',
+          foreground: '#F5F0E8',
+          muted: 'hsl(158 25% 12%)',
+          border: 'hsl(158 20% 15%)',
+        },
       },
       borderRadius: {
         lg: 'var(--radius)',

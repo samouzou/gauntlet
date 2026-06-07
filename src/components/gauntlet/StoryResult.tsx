@@ -7,10 +7,10 @@ interface StoryResultProps {
 }
 
 export function StoryResult({ result }: StoryResultProps) {
-    const scoreColor = result.survivability_score > 75 ? 'text-green-400' : result.survivability_score > 50 ? 'text-amber-400' : 'text-red-400';
+    const scoreColor = result.survivability_score > 75 ? 'text-warm-amber' : result.survivability_score > 50 ? 'text-amber-400' : 'text-red-400';
 
     return (
-        <div className="relative aspect-[9/16] w-[320px] bg-background border-4 border-primary/50 rounded-2xl p-8 flex flex-col items-center justify-between text-center text-white overflow-hidden shadow-2xl shadow-primary/20">
+        <div className="relative aspect-[9/16] w-[320px] bg-forge-ink border-4 border-warm-amber/50 rounded-2xl p-8 flex flex-col items-center justify-between text-center text-forge-ink-foreground overflow-hidden shadow-2xl shadow-warm-amber/20">
             <div className="flex flex-col items-center gap-2">
               <Logo className="w-12 h-12 text-primary" />
               <p className="text-lg font-semibold tracking-wider">THE GAUNTLET</p>

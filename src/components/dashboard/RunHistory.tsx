@@ -10,7 +10,7 @@ import { GauntletRun } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 const getScoreColor = (score: number): string => {
-  if (score > 75) return 'text-green-400';
+  if (score > 75) return 'text-warm-amber';
   if (score > 50) return 'text-amber-400';
   return 'text-red-400';
 };

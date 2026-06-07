@@ -163,7 +163,7 @@ export default function GauntletPage() {
                             <Card key={pack.stripe_price_id} className={cn(
                                 "flex flex-col relative", 
                                 isBestValue && "border-primary shadow-lg shadow-primary/10",
-                                isMostPopular && "border-accent shadow-lg shadow-accent/10"
+                                isMostPopular && "border-primary shadow-lg shadow-primary/10"
                             )}>
                                 {pack.display_tag && (
                                     <Badge 
@@ -171,7 +171,7 @@ export default function GauntletPage() {
                                         className={cn(
                                             "absolute -top-3 left-1/2 -translate-x-1/2",
                                             isBestValue && "bg-primary text-primary-foreground",
-                                            isMostPopular && "bg-accent text-accent-foreground",
+                                            isMostPopular && "bg-primary text-primary-foreground",
                                         )}
                                     >
                                         {pack.display_tag}
