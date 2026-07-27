@@ -1,5 +1,4 @@
 import type { Job, JobType } from '@/lib/types';
-import { sanitizeJobHtml } from '@/lib/jobs/sanitize-html';
 
 interface RemotiveJob {
   id: number;
@@ -43,7 +42,7 @@ export function mapRemotiveJob(job: RemotiveJob): Job {
     jobType: mapJobType(job.job_type),
     location: job.candidate_required_location || 'Worldwide',
     salary: job.salary || null,
-    description: sanitizeJobHtml(job.description || ''),
+    description: job.description || '',
     applyUrl: job.url,
     source: 'remotive',
     externalId: String(job.id),

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, ArrowLeft, ExternalLink, MapPin, Building2 } from 'lucide-react';
 import type { Job } from '@/lib/types';
+import { JobDescription } from '@/components/jobs/JobDescription';
 
 export function JobDetail() {
   const params = useParams<{ id: string }>();
@@ -122,12 +123,7 @@ export function JobDetail() {
         ) : null}
       </div>
 
-      <div
-        className="job-prose rounded-xl border border-border/60 bg-card/30 p-6 sm:p-8 whitespace-pre-wrap"
-        {...(job.source === 'employer'
-          ? { children: job.description }
-          : { dangerouslySetInnerHTML: { __html: job.description } })}
-      />
+      <JobDescription description={job.description} source={job.source} />
     </article>
   );
 }
