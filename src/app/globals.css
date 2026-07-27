@@ -54,21 +54,61 @@
 
 @layer utilities {
   .job-prose {
-    @apply text-muted-foreground leading-relaxed;
+    @apply leading-relaxed;
+    color: hsl(var(--muted-foreground));
   }
+
+  /* Syndicated HTML often ships inline dark text — force theme colors. */
+  .job-prose,
+  .job-prose p,
+  .job-prose li,
+  .job-prose span,
+  .job-prose div {
+    color: hsl(var(--muted-foreground)) !important;
+    background: transparent !important;
+    background-color: transparent !important;
+  }
+
+  .job-prose h1,
+  .job-prose h2,
+  .job-prose h3,
+  .job-prose h4,
+  .job-prose strong,
+  .job-prose b {
+    color: hsl(var(--foreground)) !important;
+    @apply font-semibold;
+  }
+
   .job-prose h1,
   .job-prose h2,
   .job-prose h3,
   .job-prose h4 {
-    @apply text-foreground font-semibold mt-6 mb-2;
+    @apply mt-6 mb-2;
   }
+
   .job-prose p {
     @apply mb-3;
   }
-  .job-prose ul {
-    @apply list-disc pl-5 mb-3 space-y-1;
+
+  .job-prose ul,
+  .job-prose ol {
+    @apply pl-5 mb-3 space-y-1;
   }
+
+  .job-prose ul {
+    @apply list-disc;
+  }
+
+  .job-prose ol {
+    @apply list-decimal;
+  }
+
   .job-prose a {
-    @apply text-primary underline-offset-2 hover:underline;
+    color: hsl(var(--primary)) !important;
+    @apply underline-offset-2 hover:underline;
+  }
+
+  .job-prose img {
+    @apply hidden;
   }
 }
