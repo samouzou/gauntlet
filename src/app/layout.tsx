@@ -1,6 +1,6 @@
-
 import type { Metadata } from 'next';
 import Script from 'next/script';
+import { Outfit, Source_Sans_3 } from 'next/font/google';
 import './globals.css';
 import { cn } from '@/lib/utils';
 import { Header } from '@/components/dashboard/header';
@@ -8,10 +8,22 @@ import { Toaster } from '@/components/ui/toaster';
 import { FirebaseClientProvider } from '@/firebase';
 import { AuthProvider } from '@/components/auth/auth-provider';
 
-const title = 'The Gauntlet by Verza';
-const description = 'Stress-test your video hooks against 10,000 hyper-distracted AI agents. Get an instant survivability score and find your next viral hit before you post.';
-const url = 'https://gauntlet.tryverza.com';
+const display = Outfit({
+  subsets: ['latin'],
+  variable: '--font-display',
+  weight: ['500', '600', '700'],
+});
 
+const sans = Source_Sans_3({
+  subsets: ['latin'],
+  variable: '--font-sans',
+  weight: ['400', '500', '600', '700'],
+});
+
+const title = 'Outpost';
+const description =
+  'Remote-only job search. Browse curated worldwide roles for free, or post openings as an employer.';
+const url = process.env.NEXT_PUBLIC_APP_URL || 'https://outpost.tryverza.com';
 
 export const metadata: Metadata = {
   metadataBase: new URL(url),
@@ -19,20 +31,20 @@ export const metadata: Metadata = {
     default: title,
     template: `%s | ${title}`,
   },
-  description: description,
-  keywords: ['video hook analysis', 'virality score', 'social media marketing', 'gen-z attention', 'creator tools', 'tiktok', 'instagram reels'],
+  description,
+  keywords: ['remote jobs', 'remote work', 'job board', 'work from anywhere', 'hiring'],
   openGraph: {
-    title: title,
-    description: description,
-    url: url,
+    title,
+    description,
+    url,
     siteName: title,
     locale: 'en_US',
     type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
-    title: title,
-    description: description,
+    title,
+    description,
   },
 };
 
@@ -41,63 +53,40 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const jsonLd = {
-      '@context': 'https://schema.org',
-      '@type': 'WebApplication',
-      name: title,
-      url: url,
-      description: description,
-      applicationCategory: 'MultimediaApplication',
-      operatingSystem: 'Any', // Indicates it's a web application accessible on any OS
-      offers: {
-        '@type': 'Offer',
-        price: '0', // The initial offering of free credits is free
-        priceCurrency: 'USD',
-      },
-  };
-  
   return (
-    <html lang="en" className="dark" style={{colorScheme: "dark"}} suppressHydrationWarning>
+    <html lang="en" className="dark" style={{ colorScheme: 'dark' }} suppressHydrationWarning>
       <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;500;700&display=swap"
-          rel="stylesheet"
-          crossOrigin="anonymous"
-        />
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-        />
-        {/* Google Analytics */}
-        <Script
-          async
-          src="https://www.googletagmanager.com/gtag/js?id=G-N3YM7748XD"
-        />
+        <Script async src="https://www.googletagmanager.com/gtag/js?id=G-N3YM7748XD" />
         <Script id="google-analytics">
           {`
             window.dataLayer = window.dataLayer || [];
             function gtag(){dataLayer.push(arguments);}
             gtag('js', new Date());
-
             gtag('config', 'G-N3YM7748XD');
           `}
         </Script>
       </head>
-      <body className={cn('font-mono antialiased')}>
+      <body className={cn(display.variable, sans.variable, 'font-sans antialiased')}>
         <FirebaseClientProvider>
           <AuthProvider>
             <div className="flex flex-col min-h-screen">
               <Header />
               <main className="flex-1 container mx-auto p-4 sm:p-6 lg:p-8">{children}</main>
-              <footer className="py-6 border-t border-border/50">
-                <div className="container mx-auto flex flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
-                  <p>The Gauntlet, a project by <a href="https://www.tryverza.com" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">Verza Technologies, Inc.</a></p>
-                  <div className="flex items-center gap-4">
-                    <a href="https://www.tryverza.com/privacy-policy" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">Privacy Policy</a>
-                    <a href="https://www.tryverza.com/terms-of-service" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">Terms of Service</a>
-                  </div>
+              <footer className="py-8 border-t border-border/50 mt-auto">
+                <div className="container mx-auto flex flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
+                  <p className="font-display text-foreground/80">Outpost — remote work, found.</p>
+                  <p>
+                    Aggregated listings may include jobs from{' '}
+                    <a
+                      href="https://remotive.com"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline"
+                    >
+                      Remotive
+                    </a>
+                    . Always apply on the original posting.
+                  </p>
                 </div>
               </footer>
             </div>

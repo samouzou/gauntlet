@@ -41,9 +41,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         displayName: user.displayName,
                         photoURL: user.photoURL,
                         createdAt: serverTimestamp(),
-                        total_runs: 0,
-                        high_score: 0,
-                        credits: 5, // Grant credits only when doc is created
+                        role: 'seeker',
+                        // Starter posting credits so employers can try a first listing.
+                        credits: 1,
                     };
                     await setDoc(userRef, newUser, { merge: true });
                 }
