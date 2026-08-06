@@ -18,7 +18,7 @@ export default {
     extend: {
       fontFamily: {
         sans: ['var(--font-sans)', 'sans-serif'],
-        mono: ['"Roboto Mono"', 'monospace'],
+        display: ['var(--font-display)', 'sans-serif'],
       },
       colors: {
         border: 'hsl(var(--border))',
@@ -54,16 +54,13 @@ export default {
           DEFAULT: 'hsl(var(--card))',
           foreground: 'hsl(var(--card-foreground))',
         },
-        'warm-amber': {
-          DEFAULT: '#FB923C',
-          foreground: '#07120E',
-          muted: 'hsl(32 50% 18%)',
+        midnight: {
+          DEFAULT: '#070B14',
+          soft: '#0E1422',
         },
-        'forge-ink': {
-          DEFAULT: '#07120E',
-          foreground: '#F5F0E8',
-          muted: 'hsl(158 25% 12%)',
-          border: 'hsl(158 20% 15%)',
+        signal: {
+          DEFAULT: '#2EC4B6',
+          soft: '#7DDBD1',
         },
       },
       borderRadius: {
@@ -73,25 +70,27 @@ export default {
       },
       keyframes: {
         'accordion-down': {
-          from: {
-            height: '0',
-          },
-          to: {
-            height: 'var(--radix-accordion-content-height)',
-          },
+          from: { height: '0' },
+          to: { height: 'var(--radix-accordion-content-height)' },
         },
         'accordion-up': {
-          from: {
-            height: 'var(--radix-accordion-content-height)',
-          },
-          to: {
-            height: '0',
-          },
+          from: { height: 'var(--radix-accordion-content-height)' },
+          to: { height: '0' },
+        },
+        'fade-up': {
+          from: { opacity: '0', transform: 'translateY(12px)' },
+          to: { opacity: '1', transform: 'translateY(0)' },
+        },
+        'pulse-soft': {
+          '0%, 100%': { opacity: '0.45' },
+          '50%': { opacity: '0.85' },
         },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
         'accordion-up': 'accordion-up 0.2s ease-out',
+        'fade-up': 'fade-up 0.6s ease-out both',
+        'pulse-soft': 'pulse-soft 3s ease-in-out infinite',
       },
     },
   },

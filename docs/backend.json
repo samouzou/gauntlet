@@ -1,155 +1,46 @@
 {
   "entities": {
     "User": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "User",
-      "type": "object",
-      "description": "Represents a user of The Gauntlet.",
-      "properties": {
-        "email": {
-          "type": "string",
-          "format": "email",
-          "description": "The user's email address."
-        },
-        "displayName": {
-          "type": "string",
-          "description": "The user's display name."
-        },
-        "photoURL": {
-          "type": "string",
-          "format": "uri",
-          "description": "URL of the user's profile picture."
-        },
-        "createdAt": {
-          "type": "string",
-          "format": "date-time",
-          "description": "Timestamp of when the user account was created."
-        },
-        "total_runs": {
-          "type": "number",
-          "description": "The total number of Gauntlet runs the user has initiated."
-        },
-        "high_score": {
-          "type": "number",
-          "description": "The user's highest survivability score."
-        },
-        "credits": {
-          "type": "number",
-          "description": "The number of Gauntlet runs the user can initiate."
-        }
-      },
-      "required": ["email", "displayName", "createdAt", "total_runs", "high_score", "credits"]
+      "description": "Outpost user profile (seeker or employer).",
+      "fields": {
+        "email": "string",
+        "displayName": "string | null",
+        "photoURL": "string | null",
+        "createdAt": "timestamp",
+        "role": "seeker | employer",
+        "companyName": "string | null (optional)",
+        "credits": "number — posting credits for employers"
+      }
     },
-    "GauntletRun": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Gauntlet Run",
-      "type": "object",
-      "description": "Represents a single run of the Gauntlet simulation.",
-      "properties": {
-        "userId": {
-          "type": "string",
-          "description": "The UID of the user who initiated the run."
-        },
-        "timestamp": {
-          "type": "string",
-          "format": "date-time",
-          "description": "Timestamp of when the run was initiated."
-        },
-        "video_filename": {
-            "type": "string",
-            "description": "The name of the video file uploaded."
-        },
-        "survivability_score": {
-          "type": "number",
-          "description": "The AI-generated survivability score (0-100)."
-        },
-        "death_points": {
-          "type": "array",
-          "description": "Specific points in the video where attention failed.",
-          "items": {
-            "type": "object",
-            "properties": {
-                "timestamp": {"type": "number", "description": "Timestamp in milliseconds of the death point"},
-                "reason": {"type": "string", "description": "The reason for attention failure."}
-            },
-            "required": ["timestamp", "reason"]
-          }
-        },
-        "visual_hook_score": {
-            "type": "number"
-        },
-        "audio_hook_score": {
-            "type": "number"
-        }
-      },
-      "required": ["userId", "timestamp", "video_filename", "survivability_score", "death_points"]
+    "Job": {
+      "description": "Remote job listing (aggregated or employer-posted).",
+      "fields": {
+        "title": "string",
+        "companyName": "string",
+        "companyLogo": "string | null",
+        "category": "string",
+        "tags": "string[]",
+        "jobType": "full_time | part_time | contract | freelance | internship | other",
+        "location": "string (remote region)",
+        "salary": "string | null",
+        "description": "string (HTML or plain text)",
+        "applyUrl": "string",
+        "source": "remotive | employer",
+        "externalId": "string | null",
+        "postedBy": "string | null (employer uid)",
+        "status": "active | closed",
+        "publishedAt": "timestamp | ISO string"
+      }
     },
     "Product": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Product",
-      "type": "object",
-      "description": "Represents a purchasable credit pack.",
-      "properties": {
-        "name": {
-          "type": "string"
-        },
-        "description": {
-          "type": "string"
-        },
-        "stripe_price_id": {
-          "type": "string"
-        },
-        "credit_amount": {
-          "type": "number"
-        },
-        "price_usd": {
-          "type": "number"
-        },
-        "display_tag": {
-          "type": "string"
-        }
-      },
-      "required": ["name", "stripe_price_id", "credit_amount", "price_usd"]
-    }
-  },
-  "auth": {
-    "providers": [
-      "google.com",
-      "password"
-    ]
-  },
-  "firestore": {
-    "structure": [
-      {
-        "path": "/users/{userId}",
-        "definition": {
-          "entityName": "User",
-          "schema": {
-            "$ref": "#/entities/User"
-          },
-          "description": "Stores public user profile information."
-        }
-      },
-      {
-        "path": "/users/{userId}/gauntlet_runs/{runId}",
-        "definition": {
-          "entityName": "GauntletRun",
-          "schema": {
-            "$ref": "#/entities/GauntletRun"
-          },
-          "description": "Stores the results of each Gauntlet run for a user."
-        }
-      },
-      {
-        "path": "/products/{productId}",
-        "definition": {
-            "entityName": "Product",
-            "schema": {
-                "$ref": "#/entities/Product"
-            },
-            "description": "Stores purchasable credit packs and their metadata."
-        }
+      "description": "Purchasable posting credit pack.",
+      "fields": {
+        "name": "string",
+        "stripe_price_id": "string",
+        "credit_amount": "number",
+        "price_usd": "number",
+        "display_tag": "string | null"
       }
-    ]
+    }
   }
 }

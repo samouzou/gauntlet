@@ -3,13 +3,9 @@ import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import Stripe from 'stripe';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-    apiVersion: '2026-01-28.clover',
-});
-
 interface CreateCheckoutSessionProps {
     userId: string;
-    priceId: string; // Accept a dynamic price ID
+    priceId: string;
 }
 
 export async function createCheckoutSession(props: CreateCheckoutSessionProps) {
@@ -19,20 +15,29 @@ export async function createCheckoutSession(props: CreateCheckoutSessionProps) {
         throw new Error('User is not authenticated.');
     }
 
-    const appUrl = headers().get('origin')!;
+    const key = process.env.STRIPE_SECRET_KEY;
+    if (!key) {
+        throw new Error('Stripe is not configured.');
+    }
+
+    const stripe = new Stripe(key, {
+        apiVersion: '2026-01-28.clover',
+    });
+
+    const appUrl = (await headers()).get('origin')!;
 
     const checkoutSession = await stripe.checkout.sessions.create({
         payment_method_types: ['card'],
         line_items: [
             {
-                price: priceId, // Use the dynamic price ID
+                price: priceId,
                 quantity: 1,
             },
         ],
         allow_promotion_codes: true,
         mode: 'payment',
-        success_url: `${appUrl}/`,
-        cancel_url: `${appUrl}/`,
+        success_url: `${appUrl}/employer?checkout=success`,
+        cancel_url: `${appUrl}/employer?checkout=cancel`,
         metadata: {
             userId: userId,
         },

@@ -12,27 +12,22 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      // Users can read their own data.
       allow get: if isOwner(userId);
-      
-      // Users can create their own user document.
       allow create: if isOwner(userId);
-
-      // Users can update their display name, photo, but not credits, runs, or high score.
-      allow update: if isOwner(userId) && request.resource.data.credits == resource.data.credits;
+      // Clients cannot change credits (server/admin only).
+      allow update: if isOwner(userId)
+        && request.resource.data.credits == resource.data.credits;
     }
 
-    match /users/{userId}/gauntlet_runs/{runId} {
-      // A user can create, read, and list their own gauntlet runs.
-      allow read, list, create: if isOwner(userId);
-      // Nobody can update or delete runs to preserve history.
-      allow update, delete: if false;
+    match /jobs/{jobId} {
+      // Public board: anyone can read active listings.
+      allow read: if true;
+      // Creates/updates go through Admin SDK server actions.
+      allow write: if false;
     }
 
     match /products/{productId} {
-      // Products should be publicly readable to display purchase options.
       allow read: if true;
-      // Only admins should be able to create, update, or delete products.
       allow write: if false;
     }
   }
