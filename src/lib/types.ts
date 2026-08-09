@@ -1,20 +1,3 @@
-import { Timestamp } from "firebase/firestore";
-
-interface DeathPoint {
-  timestamp: number;
-  reason: string;
-}
-
-export interface GauntletRun {
-  userId: string;
-  timestamp: Timestamp;
-  video_filename: string;
-  survivability_score: number;
-  death_points: DeathPoint[];
-  visual_hook_score: number;
-  audio_hook_score: number;
-}
-
 export interface Product {
   name: string;
   stripe_price_id: string;
@@ -23,3 +6,28 @@ export interface Product {
   display_tag: string | null;
   description?: string;
 }
+
+export interface Character {
+  id: string;
+  name: string;
+  description: string;
+  style: string;
+  imageUrl: string;
+  isSample?: boolean;
+  userId?: string | null;
+}
+
+export interface Scene {
+  id: string;
+  title: string;
+  prompt: string;
+  thumbnailUrl: string;
+  videoUrl?: string | null;
+  characterIds: string[];
+  interactionId?: string | null;
+  isSample?: boolean;
+  userId?: string | null;
+  status?: 'draft' | 'generating' | 'ready' | 'error';
+}
+
+export type StudioMode = 'explore' | 'create';

@@ -1,4 +1,5 @@
-import { config } from 'dotenv';
-config();
-
-import '@/ai/flows/gauntlet-run-flow.ts';
+/**
+ * Genkit retained for future flows. Reelwright generation uses
+ * Gemini Omni Interactions API in src/lib/studio/omni.ts.
+ */
+export {};
