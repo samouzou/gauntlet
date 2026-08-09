@@ -46,19 +46,46 @@ async function spendCredit(userId: string) {
   });
 }
 
+function humanizeServerError(error: unknown, stage: 'credits' | 'omni' | 'save'): Error {
+  const anyErr = error as any;
+  const message = String(anyErr?.message || 'Generation failed');
+  const code = anyErr?.code;
+
+  // Firebase Admin gRPC often surfaces as "5 NOT_FOUND:" with little detail.
+  if (
+    message.trim() === '5 NOT_FOUND:' ||
+    message.trim() === '5 NOT_FOUND' ||
+    code === 5 ||
+    code === 'not-found'
+  ) {
+    if (stage === 'credits' || stage === 'save') {
+      return new Error(
+        `Firestore NOT_FOUND while handling ${stage}. Confirm App Hosting is linked to project studio-7012397261-f7ef4 and that your user profile exists.`
+      );
+    }
+    return new Error(
+      'Omni returned NOT_FOUND. Confirm GEMINI_API_KEY is bound in apphosting.yaml and that the key can use gemini-omni-flash-preview in AI Studio.'
+    );
+  }
+
+  return error instanceof Error ? error : new Error(message);
+}
+
 export async function generateScene(input: GenerateSceneInput) {
   const data = generateSchema.parse(input);
 
-  await spendCredit(data.userId);
+  try {
+    await spendCredit(data.userId);
+  } catch (error) {
+    throw humanizeServerError(error, 'credits');
+  }
 
   try {
-    // Refs only when the caller attached assets. Otherwise Omni runs text_to_video
-    // from the prompt + cast description (inferred inside generateWithOmni).
+    // Refs only when the caller attached uploaded assets. Otherwise text_to_video.
     const result = await generateWithOmni({
       prompt: data.prompt,
       referenceImageUrls: data.referenceImageUrls,
       previousInteractionId: data.previousInteractionId,
-      ...(data.mode === 'edit' ? { task: 'edit' as const } : {}),
     });
 
     const sceneRef = data.sceneId
@@ -79,7 +106,11 @@ export async function generateScene(input: GenerateSceneInput) {
       ...(data.sceneId ? {} : { createdAt: FieldValue.serverTimestamp() }),
     };
 
-    await sceneRef.set(payload, { merge: true });
+    try {
+      await sceneRef.set(payload, { merge: true });
+    } catch (error) {
+      throw humanizeServerError(error, 'save');
+    }
 
     return {
       sceneId: sceneRef.id,
@@ -100,14 +131,7 @@ export async function generateScene(input: GenerateSceneInput) {
     } catch {
       // ignore refund failure
     }
-    const message = error?.message || 'Generation failed';
-    // Avoid leaking opaque gRPC status-only strings without guidance.
-    if (message.trim() === '5 NOT_FOUND:' || message.trim() === '5 NOT_FOUND') {
-      throw new Error(
-        'Gemini Omni returned NOT_FOUND. The model may be unavailable for this API key, or a reference image was rejected. Try generating without a sample cast photo, or confirm Omni Flash preview access in AI Studio.'
-      );
-    }
-    throw new Error(message);
+    throw humanizeServerError(error, 'omni');
   }
 }
 

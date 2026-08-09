@@ -1,6 +1,7 @@
 /**
  * Gemini Omni Flash via Interactions API (REST).
- * Field names are snake_case — do not send camelCase.
+ * Keep the request close to the public curl examples — extra fields have been
+ * observed to surface opaque `5 NOT_FOUND` responses.
  * Docs: https://ai.google.dev/gemini-api/docs/omni
  */
 
@@ -10,16 +11,15 @@ import path from 'path';
 const OMNI_MODEL = 'gemini-omni-flash-preview';
 const API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 const REQUEST_TIMEOUT_MS = 280_000;
-const POLL_INTERVAL_MS = 4_000;
-const MAX_POLLS = 60;
+const POLL_INTERVAL_MS = 5_000;
+const MAX_POLLS = 48;
 
 type ImageMime = 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif';
 
 export interface OmniGenerateInput {
   prompt: string;
-  /** Optional public image URLs used as character / style references */
+  /** Optional image URLs / local /samples paths used as character refs */
   referenceImageUrls?: string[];
-  /** Continue an existing Omni conversation for edits */
   previousInteractionId?: string | null;
   task?: 'text_to_video' | 'edit' | 'image_to_video' | 'reference_to_video';
 }
@@ -42,20 +42,18 @@ function getApiKey() {
     process.env.GOOGLE_GENAI_API_KEY ||
     process.env.GOOGLE_API_KEY;
   if (!key) {
-    throw new Error('GEMINI_API_KEY is not available in this environment.');
+    throw new Error(
+      'GEMINI_API_KEY is not available. Set it as an App Hosting secret and bind it in apphosting.yaml.'
+    );
   }
   return key;
 }
 
 function buildReferencePrompt(prompt: string, imageCount: number) {
   if (imageCount === 0) return prompt;
-
   const refs = Array.from({ length: imageCount }, (_, i) => `@Image${i + 1}`).join(' ');
-  const inlineTags = Array.from({ length: imageCount }, (_, i) => `<IMAGE_REF_${i}>`).join(' ');
-
   return [
     `[# References ${refs}]`,
-    `${inlineTags}`,
     prompt,
     'Use the given image(s) as references for video generation. The images should not be used as literal initial frames. Keep the referenced character(s) visually consistent.',
   ].join('\n\n');
@@ -74,7 +72,6 @@ async function fetchImageAsBase64(
   url: string
 ): Promise<{ data: string; mime_type: ImageMime } | null> {
   try {
-    // Local public sample assets — read from disk on the server.
     if (url.startsWith('/samples/')) {
       const relative = url.slice(1);
       const publicRoot = path.join(process.cwd(), 'public');
@@ -102,7 +99,6 @@ async function fetchImageAsBase64(
           : null;
     if (!mime_type) return null;
     const buffer = Buffer.from(await res.arrayBuffer());
-    // Keep payloads reasonable for App Hosting request limits.
     if (buffer.byteLength > 8_000_000) return null;
     return { data: buffer.toString('base64'), mime_type };
   } catch {
@@ -120,39 +116,50 @@ function extractVideo(raw: any): {
   let mimeType: string | null = null;
 
   const consider = (part: any) => {
-    if (!part || part.type !== 'video') return;
+    if (!part) return;
+    const type = part.type || part.media_type;
+    if (type && type !== 'video') return;
+    if (!part.data && !part.uri) return;
     mimeType = part.mime_type || mimeType || 'video/mp4';
     if (part.data) videoBase64 = part.data;
     if (part.uri) videoUri = part.uri;
   };
 
-  // REST docs: video lives under steps[].content[]
-  const steps = Array.isArray(raw?.steps) ? raw.steps : [];
-  for (const step of steps) {
-    if (step?.type && step.type !== 'model_output') continue;
+  for (const step of Array.isArray(raw?.steps) ? raw.steps : []) {
     for (const part of step?.content || []) consider(part);
   }
-
-  // Newer Interactions shape: outputs[]
   for (const part of Array.isArray(raw?.outputs) ? raw.outputs : []) consider(part);
+  if (raw?.output_video) consider({ type: 'video', ...raw.output_video });
 
-  // SDK convenience field (when present)
-  if (!videoUri && !videoBase64 && raw?.output_video) {
-    videoBase64 = raw.output_video.data || null;
-    videoUri = raw.output_video.uri || null;
-    mimeType = raw.output_video.mime_type || mimeType || 'video/mp4';
+  // Deep scan — some payloads nest video oddly.
+  if (!videoUri && !videoBase64) {
+    const stack = [raw];
+    while (stack.length) {
+      const node = stack.pop();
+      if (!node || typeof node !== 'object') continue;
+      if (
+        (node.type === 'video' || node.mime_type === 'video/mp4') &&
+        (node.data || node.uri)
+      ) {
+        consider({ type: 'video', ...node });
+        break;
+      }
+      for (const value of Object.values(node)) {
+        if (value && typeof value === 'object') stack.push(value);
+      }
+    }
   }
 
   return { videoUri, videoBase64, mimeType };
 }
 
-function formatApiError(status: number, raw: any): string {
+function formatApiError(status: number, raw: any): Error {
   const err = raw?.error || raw;
   const message =
     err?.message ||
     raw?.message ||
     (typeof raw === 'string' ? raw : null) ||
-    `Omni request failed (${status})`;
+    `Omni request failed (HTTP ${status})`;
 
   const details = Array.isArray(err?.details)
     ? err.details
@@ -161,23 +168,20 @@ function formatApiError(status: number, raw: any): string {
         .join(' · ')
     : '';
 
-  const statusName = err?.status || err?.statusMessage || '';
-  const composed = [message, statusName && message.includes(statusName) ? '' : statusName, details]
-    .filter(Boolean)
-    .join(' — ');
-
+  const composed = [message, details].filter(Boolean).join(' — ');
   const lower = composed.toLowerCase();
-  if (
-    status === 404 ||
-    lower.includes('not_found') ||
-    lower.includes('not found')
-  ) {
-    if (lower.includes('model') || lower.includes(OMNI_MODEL) || message.trim() === '5 NOT_FOUND:') {
-      return (
-        `Gemini Omni model "${OMNI_MODEL}" was not found for this API key. ` +
-        `Confirm the key has Gemini API access and Omni Flash preview enabled in Google AI Studio.`
-      );
-    }
+
+  console.error('[omni] API error', {
+    status,
+    body: typeof raw === 'object' ? JSON.stringify(raw).slice(0, 2000) : String(raw),
+  });
+
+  if (status === 404 || lower.includes('not_found') || lower.includes('not found')) {
+    return new Error(
+      `Omni NOT_FOUND (HTTP ${status}): ${composed || 'no message'}. ` +
+        `Request used model "${OMNI_MODEL}" via ${API_BASE}/interactions. ` +
+        `Confirm this API key can call Gemini Omni Flash in AI Studio.`
+    );
   }
 
   if (
@@ -186,17 +190,18 @@ function formatApiError(status: number, raw: any): string {
     lower.includes('likeness') ||
     lower.includes('minors')
   ) {
-    return (
+    return new Error(
       'Omni blocked this reference image (recognizable people / policy). ' +
-      'Try a non-photoreal character image you own, or generate from text only.'
+        'Remove the still and generate from the description, or upload a non-photoreal asset you own.'
     );
   }
 
-  return composed;
+  return new Error(`Omni error (HTTP ${status}): ${composed}`);
 }
 
 async function postInteraction(apiKey: string, body: Record<string, unknown>) {
-  const response = await fetch(`${API_BASE}/interactions`, {
+  // Docs use ?key=; header alone is also supported — send both for compatibility.
+  const response = await fetch(`${API_BASE}/interactions?key=${encodeURIComponent(apiKey)}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -206,24 +211,38 @@ async function postInteraction(apiKey: string, body: Record<string, unknown>) {
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
 
-  const raw = await response.json().catch(() => ({}));
+  const text = await response.text();
+  let raw: any = {};
+  try {
+    raw = text ? JSON.parse(text) : {};
+  } catch {
+    raw = { message: text.slice(0, 500) };
+  }
+
   if (!response.ok) {
-    throw new Error(formatApiError(response.status, raw));
+    throw formatApiError(response.status, raw);
   }
   return raw;
 }
 
 async function getInteraction(apiKey: string, id: string) {
-  const response = await fetch(`${API_BASE}/interactions/${encodeURIComponent(id)}`, {
-    method: 'GET',
-    headers: {
-      'x-goog-api-key': apiKey,
-    },
-    signal: AbortSignal.timeout(60_000),
-  });
-  const raw = await response.json().catch(() => ({}));
+  const response = await fetch(
+    `${API_BASE}/interactions/${encodeURIComponent(id)}?key=${encodeURIComponent(apiKey)}`,
+    {
+      method: 'GET',
+      headers: { 'x-goog-api-key': apiKey },
+      signal: AbortSignal.timeout(60_000),
+    }
+  );
+  const text = await response.text();
+  let raw: any = {};
+  try {
+    raw = text ? JSON.parse(text) : {};
+  } catch {
+    raw = { message: text.slice(0, 500) };
+  }
   if (!response.ok) {
-    throw new Error(formatApiError(response.status, raw));
+    throw formatApiError(response.status, raw);
   }
   return raw;
 }
@@ -234,24 +253,21 @@ async function waitForVideo(apiKey: string, initial: any) {
 
   while (polls < MAX_POLLS) {
     const status = raw?.status;
-    const { videoUri, videoBase64, mimeType } = extractVideo(raw);
-
-    if (videoUri || videoBase64) {
-      return { raw, videoUri, videoBase64, mimeType };
+    const extracted = extractVideo(raw);
+    if (extracted.videoUri || extracted.videoBase64) {
+      return { raw, ...extracted };
     }
 
     if (status === 'failed' || status === 'cancelled') {
-      const reason =
-        raw?.error?.message ||
-        raw?.status_message ||
-        `Omni interaction ${status || 'failed'}`;
-      throw new Error(reason);
+      throw new Error(
+        raw?.error?.message || raw?.status_message || `Omni interaction ${status}`
+      );
     }
 
     if (status === 'completed') {
-      // Completed but no video payload — surface a clear error.
+      console.error('[omni] completed without video payload', JSON.stringify(raw).slice(0, 2000));
       throw new Error(
-        'Omni finished without a video payload. Try a shorter prompt or regenerate without reference images.'
+        'Omni finished without a video payload. Try a shorter prompt or regenerate without a reference still.'
       );
     }
 
@@ -268,12 +284,42 @@ async function waitForVideo(apiKey: string, initial: any) {
   throw new Error('Timed out waiting for Omni video. Try again in a moment.');
 }
 
+function buildMinimalBody(input: {
+  promptText: string;
+  contentParts: OmniContentPart[];
+  previousInteractionId?: string | null;
+  aspectRatio?: '16:9' | '9:16';
+}) {
+  // Match the working public curl examples as closely as possible.
+  const body: Record<string, unknown> = {
+    model: OMNI_MODEL,
+    input:
+      input.contentParts.length === 1 && input.contentParts[0].type === 'text'
+        ? input.promptText
+        : input.contentParts,
+    store: true,
+  };
+
+  if (input.previousInteractionId) {
+    body.previous_interaction_id = input.previousInteractionId;
+  }
+
+  // Only add response_format when we need aspect ratio — keep shape doc-identical.
+  if (input.aspectRatio && input.aspectRatio !== '16:9') {
+    body.response_format = {
+      type: 'video',
+      aspect_ratio: input.aspectRatio,
+    };
+  }
+
+  return body;
+}
+
 export async function generateWithOmni(input: OmniGenerateInput): Promise<OmniGenerateResult> {
   const apiKey = getApiKey();
   const requestedUrls = input.referenceImageUrls || [];
 
-  const images: Array<{ data: string; mime_type: 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif' }> =
-    [];
+  const images: Array<{ data: string; mime_type: ImageMime }> = [];
   for (const url of requestedUrls) {
     const image = await fetchImageAsBase64(url);
     if (image) images.push(image);
@@ -281,7 +327,6 @@ export async function generateWithOmni(input: OmniGenerateInput): Promise<OmniGe
 
   const attachedCount = images.length;
   const promptText = buildReferencePrompt(input.prompt, attachedCount);
-
   const contentParts: OmniContentPart[] = [
     ...images.map((image) => ({
       type: 'image' as const,
@@ -291,78 +336,44 @@ export async function generateWithOmni(input: OmniGenerateInput): Promise<OmniGe
     { type: 'text', text: promptText },
   ];
 
-  const task =
-    input.task ||
-    (input.previousInteractionId
-      ? 'edit'
-      : attachedCount > 1
-        ? 'reference_to_video'
-        : attachedCount === 1
-          ? 'image_to_video'
-          : 'text_to_video');
+  const primaryBody = buildMinimalBody({
+    promptText,
+    contentParts,
+    previousInteractionId: input.previousInteractionId,
+  });
 
-  // Keep the body close to the public Omni REST examples.
-  // Avoid delivery:"uri" here — it depends on Files API readiness and often
-  // surfaces opaque NOT_FOUND errors when the file handle is not ready yet.
-  const body: Record<string, unknown> = {
+  console.info('[omni] create interaction', {
     model: OMNI_MODEL,
-    input:
-      contentParts.length === 1 && contentParts[0].type === 'text'
-        ? promptText
-        : contentParts,
-    store: true,
-    background: false,
-    stream: false,
-    response_modalities: ['video'],
-    response_format: {
-      type: 'video',
-      aspect_ratio: '16:9',
-    },
-    generation_config: {
-      video_config: {
-        task,
-      },
-    },
-  };
-
-  if (input.previousInteractionId) {
-    body.previous_interaction_id = input.previousInteractionId;
-  }
+    attachedImages: attachedCount,
+    promptChars: promptText.length,
+    hasPrevious: Boolean(input.previousInteractionId),
+    bodyKeys: Object.keys(primaryBody),
+  });
 
   let raw: any;
   try {
-    raw = await postInteraction(apiKey, body);
+    raw = await postInteraction(apiKey, primaryBody);
   } catch (error: any) {
-    // If reference images caused a policy / not-found failure, retry text-only once.
     const message = String(error?.message || '');
     const canRetryTextOnly =
       attachedCount > 0 &&
       !input.previousInteractionId &&
-      (message.includes('reference image') ||
-        message.includes('NOT_FOUND') ||
+      (message.includes('NOT_FOUND') ||
         message.includes('not found') ||
         message.includes('blocked') ||
-        message.includes('likeness'));
+        message.includes('likeness') ||
+        message.includes('reference'));
 
     if (!canRetryTextOnly) throw error;
 
-    raw = await postInteraction(apiKey, {
-      model: OMNI_MODEL,
-      input: input.prompt,
-      store: true,
-      background: false,
-      stream: false,
-      response_modalities: ['video'],
-      response_format: {
-        type: 'video',
-        aspect_ratio: '16:9',
-      },
-      generation_config: {
-        video_config: {
-          task: 'text_to_video',
-        },
-      },
-    });
+    console.warn('[omni] image path failed; retrying text-only', message.slice(0, 300));
+    raw = await postInteraction(
+      apiKey,
+      buildMinimalBody({
+        promptText: input.prompt,
+        contentParts: [{ type: 'text', text: input.prompt }],
+      })
+    );
   }
 
   const settled = await waitForVideo(apiKey, raw);

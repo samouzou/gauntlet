@@ -176,11 +176,15 @@ export function StudioWorkspace() {
 
     startTransition(async () => {
       try {
-        // Only characters with an uploaded/sample still become Omni image refs.
-        // Everyone else contributes description text only → text_to_video.
+        // Only user-uploaded stills (https Storage URLs) become Omni image refs.
+        // Sample art + text-only cast contribute description → text_to_video.
         const referenceImageUrls = selectedCharacters
           .map((c) => c.imageUrl)
-          .filter((url): url is string => Boolean(url));
+          .filter(
+            (url): url is string =>
+              typeof url === 'string' &&
+              (url.startsWith('https://') || url.startsWith('http://'))
+          );
 
         const castBible = selectedCharacters
           .map(

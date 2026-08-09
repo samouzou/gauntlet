@@ -5,5 +5,12 @@ runConfig:
   # Increase this value if you'd like to automatically spin up
   # more instances in response to increased traffic.
   maxInstances: 1
-  # Omni video generation/edits can take longer than hook analysis.
+  # Omni video generation/edits can take longer than the default.
   timeoutSeconds: 300
+
+# Bind secrets created with:
+#   firebase apphosting:secrets:set GEMINI_API_KEY
+# Without this binding, server actions will not see GEMINI_API_KEY at runtime.
+env:
+  - variable: GEMINI_API_KEY
+    secret: GEMINI_API_KEY
