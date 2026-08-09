@@ -12,7 +12,8 @@ export interface Character {
   name: string;
   description: string;
   style: string;
-  imageUrl: string;
+  /** Optional uploaded reference still. When missing, Omni uses the text description. */
+  imageUrl?: string | null;
   isSample?: boolean;
   userId?: string | null;
 }

@@ -23,8 +23,9 @@ service firebase.storage {
         && request.resource.size < 100 * 1024 * 1024;
     }
 
-    // Character reference images
+    // Character reference stills (uploaded assets used as Omni image refs)
     match /users/{userId}/characters/{allPaths=**} {
+      // Owner reads via console/app; download URLs with tokens also work for server Omni fetch.
       allow read: if isOwner(userId);
       allow write: if isOwner(userId) && isImage();
     }

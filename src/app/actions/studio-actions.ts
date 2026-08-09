@@ -52,17 +52,13 @@ export async function generateScene(input: GenerateSceneInput) {
   await spendCredit(data.userId);
 
   try {
-    const hasRefs = (data.referenceImageUrls?.length ?? 0) > 0;
+    // Refs only when the caller attached assets. Otherwise Omni runs text_to_video
+    // from the prompt + cast description (inferred inside generateWithOmni).
     const result = await generateWithOmni({
       prompt: data.prompt,
       referenceImageUrls: data.referenceImageUrls,
       previousInteractionId: data.previousInteractionId,
-      task:
-        data.mode === 'edit'
-          ? 'edit'
-          : hasRefs
-            ? 'reference_to_video'
-            : 'text_to_video',
+      ...(data.mode === 'edit' ? { task: 'edit' as const } : {}),
     });
 
     const sceneRef = data.sceneId
@@ -120,14 +116,19 @@ const characterSchema = z.object({
   name: z.string().min(2).max(80),
   description: z.string().min(10).max(2000),
   style: z.string().min(2).max(200),
-  imageUrl: imageRefSchema,
+  /** Optional Firebase Storage download URL from an uploaded still. */
+  imageUrl: imageRefSchema.optional().nullable(),
 });
 
 export async function saveCharacter(input: z.infer<typeof characterSchema>) {
   const data = characterSchema.parse(input);
   const ref = adminDb.collection('characters').doc();
   await ref.set({
-    ...data,
+    userId: data.userId,
+    name: data.name,
+    description: data.description,
+    style: data.style,
+    imageUrl: data.imageUrl || null,
     createdAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp(),
   });

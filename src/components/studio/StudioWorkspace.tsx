@@ -1,12 +1,14 @@
 'use client';
 
-import { useEffect, useMemo, useState, useTransition } from 'react';
+import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useDropzone } from 'react-dropzone';
 import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { useUserCredits } from '@/hooks/use-user-credits';
 import { useToast } from '@/hooks/use-toast';
 import { generateScene, saveCharacter } from '@/app/actions/studio-actions';
 import { createCheckoutSession } from '@/app/actions/checkout';
+import { uploadCharacterAsset } from '@/lib/studio/upload-character-asset';
 import {
   SAMPLE_CHARACTERS,
   SAMPLE_SCENES,
@@ -22,7 +24,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, Sparkles, Clapperboard, UserRoundPlus } from 'lucide-react';
+import { Loader2, Sparkles, Clapperboard, UserRoundPlus, ImagePlus, X } from 'lucide-react';
 import { collection, query, where, orderBy } from 'firebase/firestore';
 import type { Character, Product, Scene } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -30,7 +32,7 @@ import { cn } from '@/lib/utils';
 export function StudioWorkspace() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { user, firestore } = useFirebase();
+  const { user, firestore, firebaseApp } = useFirebase();
   const { credits, isLoading: creditsLoading } = useUserCredits();
   const { toast } = useToast();
   const [isPending, startTransition] = useTransition();
@@ -46,11 +48,12 @@ export function StudioWorkspace() {
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [isBuying, setIsBuying] = useState<string | null>(null);
 
-  // New character form
+  // New character form — asset is an optional local file upload
   const [charName, setCharName] = useState('');
   const [charDescription, setCharDescription] = useState('');
   const [charStyle, setCharStyle] = useState('Cinematic, photoreal');
-  const [charImageUrl, setCharImageUrl] = useState('');
+  const [charAssetFile, setCharAssetFile] = useState<File | null>(null);
+  const [charAssetPreview, setCharAssetPreview] = useState<string | null>(null);
 
   const productsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
@@ -79,7 +82,7 @@ export function StudioWorkspace() {
       const character = getSampleCharacter(characterId) || characters.find((c) => c.id === characterId);
       if (character) {
         setSelectedCharacterIds([character.id]);
-        setPreviewImage(character.imageUrl);
+        setPreviewImage(character.imageUrl || null);
         setPrompt((prev) => prev || `${character.name} in a new scene — ${character.description}`);
         setTitle((prev) => prev || `${character.name} scene`);
       }
@@ -92,7 +95,7 @@ export function StudioWorkspace() {
         setPrompt(scene.prompt);
         setTitle(scene.title);
         setSelectedCharacterIds(scene.characterIds);
-        setPreviewImage(scene.thumbnailUrl);
+        setPreviewImage(scene.thumbnailUrl || null);
         setVideoUrl(null);
         setInteractionId(null);
       }
@@ -106,8 +109,37 @@ export function StudioWorkspace() {
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id].slice(0, 3)
     );
     const character = characters.find((c) => c.id === id);
-    if (character) setPreviewImage(character.imageUrl);
+    if (character?.imageUrl) setPreviewImage(character.imageUrl);
   };
+
+  const clearCharAsset = useCallback(() => {
+    setCharAssetFile(null);
+    setCharAssetPreview((prev) => {
+      if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev);
+      return null;
+    });
+  }, []);
+
+  const onCharAssetDrop = useCallback(
+    (accepted: File[]) => {
+      const file = accepted[0];
+      if (!file) return;
+      setCharAssetPreview((prev) => {
+        if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev);
+        return URL.createObjectURL(file);
+      });
+      setCharAssetFile(file);
+    },
+    []
+  );
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop: onCharAssetDrop,
+    accept: { 'image/*': ['.jpg', '.jpeg', '.png', '.webp', '.gif'] },
+    maxFiles: 1,
+    maxSize: 8 * 1024 * 1024,
+    multiple: false,
+  });
 
   const requireAuthOrCredits = () => {
     if (!user) {
@@ -144,16 +176,18 @@ export function StudioWorkspace() {
 
     startTransition(async () => {
       try {
-        // Sample cast uses illustrated local art (policy-safe). User uploads may be
-        // remote URLs. Always prefer attached refs when present.
+        // Only characters with an uploaded/sample still become Omni image refs.
+        // Everyone else contributes description text only → text_to_video.
         const referenceImageUrls = selectedCharacters
           .map((c) => c.imageUrl)
-          .filter(Boolean);
+          .filter((url): url is string => Boolean(url));
 
         const castBible = selectedCharacters
           .map(
             (c) =>
-              `${c.name}: ${c.description}${c.style ? ` Visual style: ${c.style}.` : ''}`
+              `${c.name}: ${c.description}${c.style ? ` Visual style: ${c.style}.` : ''}${
+                c.imageUrl ? '' : ' (no reference still — match from this description).'
+              }`
           )
           .join('\n');
 
@@ -196,25 +230,50 @@ export function StudioWorkspace() {
       setAuthOpen(true);
       return;
     }
+    if (charName.trim().length < 2 || charDescription.trim().length < 10) {
+      toast({
+        variant: 'destructive',
+        title: 'Add name and description',
+        description: 'A short character bible is enough — the still is optional.',
+      });
+      return;
+    }
+
     startTransition(async () => {
       try {
+        let imageUrl: string | null = null;
+        if (charAssetFile) {
+          imageUrl = await uploadCharacterAsset({
+            app: firebaseApp,
+            userId: user.uid,
+            file: charAssetFile,
+          });
+        }
+
         const { characterId } = await saveCharacter({
           userId: user.uid,
-          name: charName,
-          description: charDescription,
-          style: charStyle,
-          imageUrl: charImageUrl,
+          name: charName.trim(),
+          description: charDescription.trim(),
+          style: charStyle.trim() || 'Cinematic',
+          imageUrl,
         });
-        toast({ title: 'Character saved', description: 'Ready to cast in your next scene.' });
+        toast({
+          title: 'Character saved',
+          description: imageUrl
+            ? 'Reference still attached for Omni continuity.'
+            : 'Saved as text cast — generate from the description.',
+        });
         setSelectedCharacterIds((prev) => [...prev, characterId].slice(0, 3));
+        if (imageUrl) setPreviewImage(imageUrl);
         setCharName('');
         setCharDescription('');
-        setCharImageUrl('');
+        setCharStyle('Cinematic, photoreal');
+        clearCharAsset();
       } catch (err: any) {
         toast({
           variant: 'destructive',
           title: 'Could not save character',
-          description: err.message || 'Check the image URL and try again.',
+          description: err.message || 'Upload failed — try another image or save without one.',
         });
       }
     });
@@ -367,7 +426,8 @@ export function StudioWorkspace() {
                 ))}
               </div>
               <p className="text-xs text-muted-foreground mt-3">
-                Select up to 3 characters. Their images are sent as Omni references for continuity.
+                Select up to 3. Uploaded stills become Omni image refs; text-only cast generates from
+                the description.
               </p>
             </TabsContent>
             <TabsContent value="create" className="mt-4">
@@ -378,7 +438,8 @@ export function StudioWorkspace() {
                     Create character
                   </CardTitle>
                   <CardDescription>
-                    Add a reference image URL and description. Saving requires an account.
+                    Describe the cast. Optionally upload a reference still for continuity. Saving
+                    requires an account.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
@@ -392,6 +453,7 @@ export function StudioWorkspace() {
                       rows={3}
                       value={charDescription}
                       onChange={(e) => setCharDescription(e.target.value)}
+                      placeholder="Look, wardrobe, temperament…"
                     />
                   </div>
                   <div className="space-y-2">
@@ -399,15 +461,49 @@ export function StudioWorkspace() {
                     <Input value={charStyle} onChange={(e) => setCharStyle(e.target.value)} />
                   </div>
                   <div className="space-y-2">
-                    <Label>Reference image URL</Label>
-                    <Input
-                      type="url"
-                      value={charImageUrl}
-                      onChange={(e) => setCharImageUrl(e.target.value)}
-                      placeholder="https://"
-                    />
+                    <Label>Reference still (optional)</Label>
+                    {charAssetPreview ? (
+                      <div className="relative overflow-hidden rounded-xl border border-border/70">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={charAssetPreview}
+                          alt="Character reference preview"
+                          className="h-40 w-full object-cover"
+                        />
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="secondary"
+                          className="absolute right-2 top-2 h-8 w-8"
+                          onClick={clearCharAsset}
+                          aria-label="Remove reference still"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <div
+                        {...getRootProps()}
+                        className={cn(
+                          'flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border/80 bg-secondary/20 px-4 py-8 text-center transition-colors',
+                          isDragActive && 'border-primary bg-primary/10'
+                        )}
+                      >
+                        <input {...getInputProps()} />
+                        <ImagePlus className="h-5 w-5 text-primary" />
+                        <p className="text-sm text-foreground/90">
+                          {isDragActive ? 'Drop the still here' : 'Drag a still, or click to upload'}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          JPEG / PNG / WebP · under 8MB · skip to generate from text
+                        </p>
+                      </div>
+                    )}
                   </div>
                   <Button className="w-full" disabled={isPending} onClick={handleSaveCharacter}>
+                    {isPending ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : null}
                     Save character
                   </Button>
                 </CardContent>
