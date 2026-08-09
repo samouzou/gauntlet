@@ -41,11 +41,17 @@ export async function generateScene(input: GenerateSceneInput) {
   await spendCredit(data.userId);
 
   try {
+    const hasRefs = (data.referenceImageUrls?.length ?? 0) > 0;
     const result = await generateWithOmni({
       prompt: data.prompt,
       referenceImageUrls: data.referenceImageUrls,
       previousInteractionId: data.previousInteractionId,
-      task: data.mode === 'edit' ? 'edit' : 'text_to_video',
+      task:
+        data.mode === 'edit'
+          ? 'edit'
+          : hasRefs
+            ? 'reference_to_video'
+            : 'text_to_video',
     });
 
     const sceneRef = data.sceneId
