@@ -1,0 +1,38 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isImage() {
+      return request.resource != null
+        && request.resource.contentType.matches('image/.*')
+        && request.resource.size < 10 * 1024 * 1024;
+    }
+
+    function isVideo() {
+      return request.resource != null
+        && request.resource.contentType.matches('video/.*')
+        && request.resource.size < 100 * 1024 * 1024;
+    }
+
+    // Character reference images
+    match /users/{userId}/characters/{allPaths=**} {
+      allow read: if isOwner(userId);
+      allow write: if isOwner(userId) && isImage();
+    }
+
+    // Generated / uploaded scene media
+    match /users/{userId}/scenes/{allPaths=**} {
+      allow read: if isOwner(userId);
+      allow write: if isOwner(userId) && (isImage() || isVideo());
+    }
+  }
+}
