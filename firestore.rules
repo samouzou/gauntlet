@@ -22,14 +22,14 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow get: if isOwner(userId);
-      // Client may create/repair the profile; credits are only writable on create
-      // or when left unchanged (server/Admin handles spend + purchases).
+      // Profile creates primarily go through Admin (ensureUserProfile).
+      // Keep a narrow client create path as a fallback (starter credits only).
       allow create: if isOwner(userId)
-        && request.resource.data.keys().hasAll(['credits'])
         && request.resource.data.credits is number
         && request.resource.data.credits >= 0
         && request.resource.data.credits <= 5;
 
+      // Clients may update profile fields but never mutate credits / counters.
       allow update: if isOwner(userId)
         && creditsUnchanged()
         && generationsUnchanged();

@@ -1,76 +1,65 @@
 'use client';
 
 import { useUser, useFirebase } from '@/firebase';
-import { useEffect, useState } from 'react';
-import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { useEffect, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { ensureUserProfile } from '@/app/actions/user-profile';
 
+/**
+ * Ensures every signed-in user has a Firestore profile + starter credits.
+ * Writes go through Admin (server action) so client rules can't block signup.
+ */
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { user, isUserLoading } = useUser();
   const { firestore } = useFirebase();
-  const router = useRouter();
   const [isAuthReady, setIsAuthReady] = useState(false);
+  const ensuredUid = useRef<string | null>(null);
 
   useEffect(() => {
-    if (isUserLoading) {
-      return; // Wait until user state is resolved
-    }
+    if (isUserLoading) return;
 
     if (!user) {
-        // If no user and not loading, auth is "ready" (we know there's no user)
-        setIsAuthReady(true);
-        return;
+      ensuredUid.current = null;
+      setIsAuthReady(true);
+      return;
     }
 
-    if (user && firestore) {
-      const isEmailPasswordUser = user.providerData.some(p => p.providerId === 'password');
-      
-      // For email/password users, we only proceed if they are verified.
-      // Other providers (like Google) are assumed to be verified.
-      if (!isEmailPasswordUser || user.emailVerified) {
-        const userRef = doc(firestore, 'users', user.uid);
-        
-        const checkAndCreateUserDoc = async () => {
-            try {
-                const docSnap = await getDoc(userRef);
-                if (!docSnap.exists()) {
-                    // User is authenticated and verified, but no user document exists. Create one.
-                    const newUser = {
-                        email: user.email ?? '',
-                        displayName: user.displayName ?? null,
-                        photoURL: user.photoURL ?? null,
-                        createdAt: serverTimestamp(),
-                        total_generations: 0,
-                        // Starter credits for first Omni generations.
-                        credits: 5,
-                    };
-                    await setDoc(userRef, newUser, { merge: true });
-                } else if (typeof docSnap.data()?.credits !== 'number') {
-                    // Repair legacy profiles missing a credits field.
-                    await setDoc(
-                        userRef,
-                        { credits: 5, total_generations: docSnap.data()?.total_generations ?? 0 },
-                        { merge: true }
-                    );
-                }
-            } catch (error) {
-                console.error("Error ensuring user document exists:", error);
-            } finally {
-                setIsAuthReady(true);
-            }
-        };
-        
-        checkAndCreateUserDoc();
+    // Already ensured this uid in this session.
+    if (ensuredUid.current === user.uid) {
+      setIsAuthReady(true);
+      return;
+    }
 
-      } else {
-          // The user is an unverified email/password user.
-          // The app is "ready" but the UI will redirect them.
-          setIsAuthReady(true);
+    let cancelled = false;
+
+    const run = async () => {
+      setIsAuthReady(false);
+      try {
+        await ensureUserProfile({
+          userId: user.uid,
+          email: user.email ?? '',
+          displayName: user.displayName ?? null,
+          photoURL: user.photoURL ?? null,
+        });
+        ensuredUid.current = user.uid;
+      } catch (error) {
+        console.error('Error ensuring user profile in Firestore:', error);
+        // Still unblock the UI — spendCredit can seed on generate as a fallback.
+      } finally {
+        if (!cancelled) setIsAuthReady(true);
       }
+    };
+
+    // firestore presence means client Firebase is initialized; profile write is server-side.
+    if (firestore || user) {
+      void run();
     }
-  }, [user, isUserLoading, firestore, router]);
-  
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user, isUserLoading, firestore]);
+
   if (!isAuthReady) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-background">
