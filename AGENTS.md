@@ -9,6 +9,11 @@ Reelwright is a single Next.js 15 (App Router, Turbopack, React 19) app — an A
 - Guest browsing works with no secrets: the landing page (`/`) and studio (`/studio`) use static samples from `src/lib/studio/samples.ts`. You can select characters, load a sample scene into the prompt editor, edit the prompt, and hit "Generate" — which opens the sign-in auth gate (expected guest behavior).
 - Actual video generation is gated by external services that are NOT configured in this environment: it needs `GEMINI_API_KEY` (or `GOOGLE_GENAI_API_KEY`), Firebase Admin credentials via Application Default Credentials (`src/firebase/admin.ts` calls `initializeApp()` with no args), a signed-in Firebase user, and available credits. Buying credits additionally needs `STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET` and a Firestore `products` collection. Without these, everything up to the auth gate / generation call still works.
 - Firebase client config is hardcoded in `src/firebase/config.ts` (points at a live project); it is not env-driven.
+- Firebase project id: `studio-7012397261-f7ef4` (see `.firebaserc`). Storage bucket: `studio-7012397261-f7ef4.firebasestorage.app`.
+- Deploy Firestore/Storage rules from this environment with the Firebase CLI (`firebase-tools`, installed via `.cursor/environment.json`):
+  - Set `FIREBASE_TOKEN` (CI token from `firebase login:ci` on a machine already logged into the Firebase project owner account).
+  - Then: `npm run firebase:deploy:rules` (or `npx firebase deploy --only firestore:rules,storage --project studio-7012397261-f7ef4 --non-interactive`).
+  - Without `FIREBASE_TOKEN` (or `gcloud` ADC), `firebase deploy` cannot authenticate in this cloud VM.
 
 ### Gotcha: don't build while dev is running
 `npm run build` and `npm run dev` share the `.next` directory. Running a production build while the dev server is up corrupts it and the dev server starts returning HTTP 500 with `ENOENT ... _buildManifest.js.tmp` / `app-build-manifest.json` errors. If this happens, stop the dev server, `rm -rf .next`, and restart `npm run dev`.
