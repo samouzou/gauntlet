@@ -5,12 +5,23 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { generateWithOmni } from '@/lib/studio/omni';
 import { z } from 'zod';
 
+const imageRefSchema = z
+  .string()
+  .min(1)
+  .refine(
+    (value) =>
+      value.startsWith('/samples/') ||
+      value.startsWith('https://') ||
+      value.startsWith('http://'),
+    'Reference image must be a public /samples path or http(s) URL'
+  );
+
 const generateSchema = z.object({
   userId: z.string().min(1),
   prompt: z.string().min(8).max(4000),
   title: z.string().min(2).max(120).optional(),
   characterIds: z.array(z.string()).max(6).optional().default([]),
-  referenceImageUrls: z.array(z.string().url()).max(6).optional().default([]),
+  referenceImageUrls: z.array(imageRefSchema).max(6).optional().default([]),
   previousInteractionId: z.string().optional().nullable(),
   sceneId: z.string().optional().nullable(),
   mode: z.enum(['generate', 'edit']).default('generate'),
@@ -93,7 +104,14 @@ export async function generateScene(input: GenerateSceneInput) {
     } catch {
       // ignore refund failure
     }
-    throw new Error(error?.message || 'Generation failed');
+    const message = error?.message || 'Generation failed';
+    // Avoid leaking opaque gRPC status-only strings without guidance.
+    if (message.trim() === '5 NOT_FOUND:' || message.trim() === '5 NOT_FOUND') {
+      throw new Error(
+        'Gemini Omni returned NOT_FOUND. The model may be unavailable for this API key, or a reference image was rejected. Try generating without a sample cast photo, or confirm Omni Flash preview access in AI Studio.'
+      );
+    }
+    throw new Error(message);
   }
 }
 
@@ -102,7 +120,7 @@ const characterSchema = z.object({
   name: z.string().min(2).max(80),
   description: z.string().min(10).max(2000),
   style: z.string().min(2).max(200),
-  imageUrl: z.string().url(),
+  imageUrl: imageRefSchema,
 });
 
 export async function saveCharacter(input: z.infer<typeof characterSchema>) {

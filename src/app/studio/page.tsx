@@ -2,6 +2,9 @@ import { Suspense } from 'react';
 import { StudioWorkspace } from '@/components/studio/StudioWorkspace';
 import { Loader2 } from 'lucide-react';
 
+// Omni generations can run close to App Hosting's 300s timeout.
+export const maxDuration = 300;
+
 export default function StudioPage() {
   return (
     <Suspense

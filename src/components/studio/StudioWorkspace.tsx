@@ -144,13 +144,27 @@ export function StudioWorkspace() {
 
     startTransition(async () => {
       try {
+        // Sample cast uses illustrated local art (policy-safe). User uploads may be
+        // remote URLs. Always prefer attached refs when present.
         const referenceImageUrls = selectedCharacters
           .map((c) => c.imageUrl)
           .filter(Boolean);
 
+        const castBible = selectedCharacters
+          .map(
+            (c) =>
+              `${c.name}: ${c.description}${c.style ? ` Visual style: ${c.style}.` : ''}`
+          )
+          .join('\n');
+
+        const promptWithCast =
+          mode === 'generate' && castBible
+            ? `${finalPrompt}\n\nCast / continuity notes:\n${castBible}`
+            : finalPrompt;
+
         const result = await generateScene({
           userId: user!.uid,
-          prompt: finalPrompt,
+          prompt: promptWithCast,
           title: title || undefined,
           characterIds: selectedCharacterIds,
           referenceImageUrls,
