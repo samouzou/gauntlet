@@ -13,9 +13,13 @@ export default function LoginPage() {
   const router = useRouter();
 
   useEffect(() => {
-    if (!isUserLoading && user) {
-      router.push('/studio');
+    if (isUserLoading || !user) return;
+    const isPasswordUser = user.providerData.some((p) => p.providerId === 'password');
+    if (isPasswordUser && !user.emailVerified) {
+      router.replace('/verify-email');
+      return;
     }
+    router.replace('/studio');
   }, [user, isUserLoading, router]);
 
   if (isUserLoading || user) {

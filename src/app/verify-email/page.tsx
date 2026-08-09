@@ -26,7 +26,7 @@ export default function VerifyEmailPage() {
       if (!user) {
         router.push('/login');
       } else if (user.emailVerified) {
-        router.push('/');
+        router.push('/studio');
       }
     }
   }, [user, isUserLoading, router]);
@@ -42,7 +42,7 @@ export default function VerifyEmailPage() {
                     // A hard refresh to the home page is necessary to ensure all state,
                     // including the user's newly granted credits, is correctly loaded
                     // after email verification.
-                    window.location.assign('/');
+                    window.location.assign('/studio');
                 }
             }
         });

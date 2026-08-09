@@ -4,8 +4,14 @@ import * as React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+import { useRouter } from 'next/navigation';
 import { useFirebase } from '@/firebase';
-import { createUserWithEmailAndPassword, sendEmailVerification, signInWithEmailAndPassword } from 'firebase/auth';
+import {
+  createUserWithEmailAndPassword,
+  sendEmailVerification,
+  signInWithEmailAndPassword,
+} from 'firebase/auth';
+import { ensureUserProfile } from '@/app/actions/user-profile';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import {
@@ -29,6 +35,7 @@ type FormValues = z.infer<typeof formSchema>;
 export function EmailPasswordForm() {
   const { auth } = useFirebase();
   const { toast } = useToast();
+  const router = useRouter();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [mode, setMode] = React.useState<'signIn' | 'signUp'>('signIn');
 
@@ -44,40 +51,65 @@ export function EmailPasswordForm() {
     setIsSubmitting(true);
     try {
       if (mode === 'signIn') {
-        await signInWithEmailAndPassword(auth, values.email, values.password);
-      } else {
-        const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
-        if (userCredential.user) {
-          await sendEmailVerification(userCredential.user);
-          toast({
-            title: "Verification Email Sent",
-            description: "Please check your inbox to finish signing up.",
-          });
+        const credential = await signInWithEmailAndPassword(auth, values.email, values.password);
+        await ensureUserProfile({
+          userId: credential.user.uid,
+          email: credential.user.email ?? values.email,
+          displayName: credential.user.displayName,
+          photoURL: credential.user.photoURL,
+        });
+        if (!credential.user.emailVerified) {
+          router.push('/verify-email');
+          return;
         }
+        router.push('/studio');
+        return;
       }
-      // The onAuthStateChanged listener in AuthProvider will handle the redirect on success.
+
+      const userCredential = await createUserWithEmailAndPassword(
+        auth,
+        values.email,
+        values.password
+      );
+      const user = userCredential.user;
+
+      // Write Firestore profile immediately (don't wait for email verification).
+      await ensureUserProfile({
+        userId: user.uid,
+        email: user.email ?? values.email,
+        displayName: user.displayName,
+        photoURL: user.photoURL,
+      });
+
+      await sendEmailVerification(user);
+      toast({
+        title: 'Verification email sent',
+        description: 'Your account is ready — confirm your email to finish setup.',
+      });
+      router.push('/verify-email');
     } catch (error: any) {
-      // Firebase provides specific error codes.
-      let errorMessage = "An unexpected error occurred. Please try again.";
+      let errorMessage = 'An unexpected error occurred. Please try again.';
       switch (error.code) {
-        case "auth/user-not-found":
-        case "auth/wrong-password":
-          errorMessage = "Invalid email or password.";
+        case 'auth/user-not-found':
+        case 'auth/wrong-password':
+        case 'auth/invalid-credential':
+          errorMessage = 'Invalid email or password.';
           break;
-        case "auth/email-already-in-use":
-          errorMessage = "An account with this email already exists.";
+        case 'auth/email-already-in-use':
+          errorMessage = 'An account with this email already exists.';
           break;
-        case "auth/weak-password":
-          errorMessage = "The password is too weak. Please use at least 6 characters.";
+        case 'auth/weak-password':
+          errorMessage = 'The password is too weak. Please use at least 6 characters.';
           break;
-        case "auth/invalid-email":
-            errorMessage = "Please enter a valid email address.";
-            break;
+        case 'auth/invalid-email':
+          errorMessage = 'Please enter a valid email address.';
+          break;
         default:
-          console.error("Authentication Error:", error);
+          console.error('Authentication Error:', error);
+          if (error?.message) errorMessage = error.message;
           break;
       }
-      
+
       toast({
         variant: 'destructive',
         title: 'Authentication Failed',
@@ -132,7 +164,7 @@ export function EmailPasswordForm() {
       <div className="mt-4 text-center text-sm">
         {mode === 'signIn' ? (
           <>
-            Don't have an account?{' '}
+            Don&apos;t have an account?{' '}
             <Button variant="link" className="p-0 h-auto" onClick={toggleMode}>
               Sign up
             </Button>
