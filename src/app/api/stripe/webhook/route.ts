@@ -69,9 +69,14 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ error: 'Invalid product configuration.' }, { status: 500 });
         }
 
-        await adminDb.collection('users').doc(userId).update({
-          credits: FieldValue.increment(creditAmount),
-        });
+        // set+merge so a missing profile doesn't 404 the webhook.
+        await adminDb.collection('users').doc(userId).set(
+          {
+            credits: FieldValue.increment(creditAmount),
+            updatedAt: FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
       } catch (error) {
         console.error('Failed to update user credits:', error);
         return NextResponse.json(

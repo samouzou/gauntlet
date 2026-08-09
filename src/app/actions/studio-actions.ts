@@ -3,6 +3,7 @@
 import { adminDb } from '@/firebase/admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { generateWithOmni } from '@/lib/studio/omni';
+import { refundCredit, spendCredit } from '@/lib/studio/credits';
 import { z } from 'zod';
 
 const imageRefSchema = z
@@ -29,42 +30,35 @@ const generateSchema = z.object({
 
 export type GenerateSceneInput = z.infer<typeof generateSchema>;
 
-async function spendCredit(userId: string) {
-  const userRef = adminDb.collection('users').doc(userId);
-
-  await adminDb.runTransaction(async (tx) => {
-    const snap = await tx.get(userRef);
-    if (!snap.exists) throw new Error('User profile not found. Sign in again.');
-    const credits = snap.data()?.credits ?? 0;
-    if (credits < 1) {
-      throw new Error('You’re out of credits. Buy a pack to keep generating.');
-    }
-    tx.update(userRef, {
-      credits: FieldValue.increment(-1),
-      total_generations: FieldValue.increment(1),
-    });
-  });
-}
-
 function humanizeServerError(error: unknown, stage: 'credits' | 'omni' | 'save'): Error {
   const anyErr = error as any;
   const message = String(anyErr?.message || 'Generation failed');
   const code = anyErr?.code;
 
+  if (message.includes('out of credits') || message.includes('Couldn’t update your credits')) {
+    return error instanceof Error ? error : new Error(message);
+  }
+
   // Firebase Admin gRPC often surfaces as "5 NOT_FOUND:" with little detail.
   if (
     message.trim() === '5 NOT_FOUND:' ||
     message.trim() === '5 NOT_FOUND' ||
+    message.includes('NOT_FOUND') ||
     code === 5 ||
     code === 'not-found'
   ) {
-    if (stage === 'credits' || stage === 'save') {
+    if (stage === 'credits') {
       return new Error(
-        `Firestore NOT_FOUND while handling ${stage}. Confirm App Hosting is linked to project studio-7012397261-f7ef4 and that your user profile exists.`
+        'Couldn’t update your credits (Firestore profile not found). Sign out/in to recreate your balance, then try again.'
+      );
+    }
+    if (stage === 'save') {
+      return new Error(
+        'Scene saved failed (Firestore NOT_FOUND). Confirm App Hosting is linked to studio-7012397261-f7ef4.'
       );
     }
     return new Error(
-      'Omni returned NOT_FOUND. Confirm GEMINI_API_KEY is bound in apphosting.yaml and that the key can use gemini-omni-flash-preview in AI Studio.'
+      'Omni returned NOT_FOUND. Confirm GEMINI_API_KEY is bound in apphosting.yaml and the key can use gemini-omni-flash-preview.'
     );
   }
 
@@ -81,7 +75,6 @@ export async function generateScene(input: GenerateSceneInput) {
   }
 
   try {
-    // Refs only when the caller attached uploaded assets. Otherwise text_to_video.
     const result = await generateWithOmni({
       prompt: data.prompt,
       referenceImageUrls: data.referenceImageUrls,
@@ -122,15 +115,7 @@ export async function generateScene(input: GenerateSceneInput) {
           : null,
     };
   } catch (error: any) {
-    // Refund on hard failure after spend
-    try {
-      await adminDb.collection('users').doc(data.userId).update({
-        credits: FieldValue.increment(1),
-        total_generations: FieldValue.increment(-1),
-      });
-    } catch {
-      // ignore refund failure
-    }
+    await refundCredit(data.userId);
     throw humanizeServerError(error, 'omni');
   }
 }

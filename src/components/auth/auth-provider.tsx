@@ -37,15 +37,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 if (!docSnap.exists()) {
                     // User is authenticated and verified, but no user document exists. Create one.
                     const newUser = {
-                        email: user.email,
-                        displayName: user.displayName,
-                        photoURL: user.photoURL,
+                        email: user.email ?? '',
+                        displayName: user.displayName ?? null,
+                        photoURL: user.photoURL ?? null,
                         createdAt: serverTimestamp(),
                         total_generations: 0,
                         // Starter credits for first Omni generations.
                         credits: 5,
                     };
                     await setDoc(userRef, newUser, { merge: true });
+                } else if (typeof docSnap.data()?.credits !== 'number') {
+                    // Repair legacy profiles missing a credits field.
+                    await setDoc(
+                        userRef,
+                        { credits: 5, total_generations: docSnap.data()?.total_generations ?? 0 },
+                        { merge: true }
+                    );
                 }
             } catch (error) {
                 console.error("Error ensuring user document exists:", error);
