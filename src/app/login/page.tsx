@@ -1,28 +1,33 @@
 'use client';
-import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useUser } from "@/firebase";
-import { useRouter } from "next/navigation";
-import { useEffect } from "react";
-import { Logo } from "@/components/logo";
-import { EmailPasswordForm } from "@/components/auth/EmailPasswordForm";
-import { CheckCircle } from "lucide-react";
+
+import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useUser } from '@/firebase';
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
+import { Logo } from '@/components/logo';
+import { EmailPasswordForm } from '@/components/auth/EmailPasswordForm';
+import { CheckCircle } from 'lucide-react';
 
 export default function LoginPage() {
   const { user, isUserLoading } = useUser();
   const router = useRouter();
 
+  const isUnverifiedPasswordUser =
+    !!user &&
+    !user.emailVerified &&
+    user.providerData.some((p) => p.providerId === 'password');
+
   useEffect(() => {
     if (isUserLoading || !user) return;
-    const isPasswordUser = user.providerData.some((p) => p.providerId === 'password');
-    if (isPasswordUser && !user.emailVerified) {
-      router.replace('/verify-email');
-      return;
-    }
+    // Keep the form mounted for unverified password users so signup can finish
+    // sending the verification email without a redirect race.
+    if (isUnverifiedPasswordUser) return;
     router.replace('/studio');
-  }, [user, isUserLoading, router]);
+  }, [user, isUserLoading, router, isUnverifiedPasswordUser]);
 
-  if (isUserLoading || user) {
+  // Only block the UI while loading, or while redirecting verified/Google users.
+  if (isUserLoading || (user && !isUnverifiedPasswordUser)) {
     return (
       <div className="flex h-[80vh] w-full items-center justify-center">
         <p className="text-muted-foreground">Loading...</p>
@@ -40,7 +45,8 @@ export default function LoginPage() {
           Generate when you&apos;re ready.
         </h1>
         <p className="text-lg text-muted-foreground mb-8 max-w-xl">
-          Browse sample characters and scenes without an account. Sign in to spend credits on Gemini Omni generations and conversational edits.
+          Browse sample characters and scenes without an account. Sign in to spend credits on
+          Gemini Omni generations and conversational edits.
         </p>
         <ul className="space-y-4 text-foreground">
           <li className="flex items-center gap-3">
@@ -65,7 +71,9 @@ export default function LoginPage() {
             </div>
             <CardTitle className="text-2xl font-display">Welcome</CardTitle>
             <CardDescription>
-              Create an account to unlock generation credits.
+              {isUnverifiedPasswordUser
+                ? 'Finish creating your account — we are sending a verification email.'
+                : 'Create an account to unlock generation credits.'}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">

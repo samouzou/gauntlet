@@ -10,8 +10,10 @@ import {
   createUserWithEmailAndPassword,
   sendEmailVerification,
   signInWithEmailAndPassword,
+  type User,
 } from 'firebase/auth';
 import { ensureUserProfile } from '@/app/actions/user-profile';
+import { markVerificationEmailPending } from '@/lib/auth/verification';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import {
@@ -31,6 +33,11 @@ const formSchema = z.object({
 });
 
 type FormValues = z.infer<typeof formSchema>;
+
+async function sendVerificationSafely(user: User) {
+  if (user.emailVerified) return;
+  await sendEmailVerification(user);
+}
 
 export function EmailPasswordForm() {
   const { auth } = useFirebase();
@@ -52,20 +59,24 @@ export function EmailPasswordForm() {
     try {
       if (mode === 'signIn') {
         const credential = await signInWithEmailAndPassword(auth, values.email, values.password);
-        await ensureUserProfile({
+        // Profile write in background — don't block navigation.
+        void ensureUserProfile({
           userId: credential.user.uid,
           email: credential.user.email ?? values.email,
           displayName: credential.user.displayName,
           photoURL: credential.user.photoURL,
-        });
+        }).catch((err) => console.error('ensureUserProfile failed', err));
+
         if (!credential.user.emailVerified) {
-          router.push('/verify-email');
+          markVerificationEmailPending(values.email);
+          router.replace('/verify-email');
           return;
         }
-        router.push('/studio');
+        router.replace('/studio');
         return;
       }
 
+      // --- Sign up ---
       const userCredential = await createUserWithEmailAndPassword(
         auth,
         values.email,
@@ -73,20 +84,44 @@ export function EmailPasswordForm() {
       );
       const user = userCredential.user;
 
-      // Write Firestore profile immediately (don't wait for email verification).
-      await ensureUserProfile({
-        userId: user.uid,
-        email: user.email ?? values.email,
-        displayName: user.displayName,
-        photoURL: user.photoURL,
-      });
+      // 1) Send verification FIRST — before profile writes / navigation races.
+      //    AuthProvider + /login used to redirect as soon as Auth user existed,
+      //    which interrupted this step; resend on /verify-email then "worked".
+      try {
+        await sendVerificationSafely(user);
+        markVerificationEmailPending(values.email);
+      } catch (verifyError: any) {
+        console.error('sendEmailVerification failed on signup', verifyError);
+        // Still mark pending so /verify-email can retry automatically.
+        markVerificationEmailPending(values.email);
+        toast({
+          variant: 'destructive',
+          title: 'Couldn’t send verification email',
+          description:
+            verifyError?.code === 'auth/too-many-requests'
+              ? 'Too many attempts. Wait a minute, then use Resend on the next screen.'
+              : 'Account created — use Resend on the next screen if you don’t see the email.',
+        });
+      }
 
-      await sendEmailVerification(user);
+      // 2) Firestore profile (Admin) — must not block the verification email.
+      try {
+        await ensureUserProfile({
+          userId: user.uid,
+          email: user.email ?? values.email,
+          displayName: user.displayName,
+          photoURL: user.photoURL,
+        });
+      } catch (profileError) {
+        console.error('ensureUserProfile failed on signup', profileError);
+        // AuthProvider will retry; spendCredit can also seed.
+      }
+
       toast({
-        title: 'Verification email sent',
-        description: 'Your account is ready — confirm your email to finish setup.',
+        title: 'Check your inbox',
+        description: 'We sent a verification link. Confirm your email to finish signing up.',
       });
-      router.push('/verify-email');
+      router.replace('/verify-email');
     } catch (error: any) {
       let errorMessage = 'An unexpected error occurred. Please try again.';
       switch (error.code) {
@@ -96,7 +131,7 @@ export function EmailPasswordForm() {
           errorMessage = 'Invalid email or password.';
           break;
         case 'auth/email-already-in-use':
-          errorMessage = 'An account with this email already exists.';
+          errorMessage = 'An account with this email already exists. Sign in instead.';
           break;
         case 'auth/weak-password':
           errorMessage = 'The password is too weak. Please use at least 6 characters.';

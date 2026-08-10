@@ -8,32 +8,35 @@ import { ensureUserProfile } from '@/app/actions/user-profile';
 /**
  * Ensures every signed-in user has a Firestore profile + starter credits.
  * Writes go through Admin (server action) so client rules can't block signup.
+ *
+ * Important: once the initial auth check finishes, we never unmount children
+ * again while ensuring a profile — that was racing email signup and cancelling
+ * sendEmailVerification mid-flight.
  */
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { user, isUserLoading } = useUser();
   const { firestore } = useFirebase();
-  const [isAuthReady, setIsAuthReady] = useState(false);
+  const [initialReady, setInitialReady] = useState(false);
   const ensuredUid = useRef<string | null>(null);
 
   useEffect(() => {
     if (isUserLoading) return;
 
+    // First auth resolution — unblock the tree.
+    if (!initialReady) {
+      setInitialReady(true);
+    }
+
     if (!user) {
       ensuredUid.current = null;
-      setIsAuthReady(true);
       return;
     }
 
-    // Already ensured this uid in this session.
-    if (ensuredUid.current === user.uid) {
-      setIsAuthReady(true);
-      return;
-    }
+    if (ensuredUid.current === user.uid) return;
 
     let cancelled = false;
 
     const run = async () => {
-      setIsAuthReady(false);
       try {
         await ensureUserProfile({
           userId: user.uid,
@@ -41,16 +44,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           displayName: user.displayName ?? null,
           photoURL: user.photoURL ?? null,
         });
-        ensuredUid.current = user.uid;
+        if (!cancelled) ensuredUid.current = user.uid;
       } catch (error) {
         console.error('Error ensuring user profile in Firestore:', error);
-        // Still unblock the UI — spendCredit can seed on generate as a fallback.
-      } finally {
-        if (!cancelled) setIsAuthReady(true);
       }
     };
 
-    // firestore presence means client Firebase is initialized; profile write is server-side.
     if (firestore || user) {
       void run();
     }
@@ -58,9 +57,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [user, isUserLoading, firestore]);
+  }, [user, isUserLoading, firestore, initialReady]);
 
-  if (!isAuthReady) {
+  if (isUserLoading || !initialReady) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-2">
