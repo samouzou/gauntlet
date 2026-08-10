@@ -14,6 +14,8 @@ export async function persistGeneratedVideo(opts: {
   videoBase64?: string | null;
   videoUri?: string | null;
   mimeType?: string | null;
+  /** Optional suffix so edits don't overwrite/cache-bust the previous cut. */
+  revision?: string | null;
 }): Promise<string | null> {
   const mimeType = opts.mimeType || 'video/mp4';
   const ext = mimeType.includes('webm') ? 'webm' : 'mp4';
@@ -22,12 +24,12 @@ export async function persistGeneratedVideo(opts: {
   if (opts.videoBase64) {
     buffer = Buffer.from(opts.videoBase64, 'base64');
   } else if (opts.videoUri) {
-    // If Omni already gave a Google-hosted URI, prefer that for the client.
+    // Prefer mirroring into our bucket. Google file URIs usually need an API key;
+    // if the unauthenticated fetch fails, fall back to the remote URI.
     if (
       opts.videoUri.startsWith('https://generativelanguage.googleapis.com/') ||
       opts.videoUri.startsWith('https://')
     ) {
-      // Still mirror into our bucket when possible so the reel stays available.
       try {
         const res = await fetch(opts.videoUri, { signal: AbortSignal.timeout(120_000) });
         if (res.ok) {
@@ -46,7 +48,8 @@ export async function persistGeneratedVideo(opts: {
   }
 
   const bucket = getStorage().bucket(firebaseConfig.storageBucket);
-  const objectPath = `users/${opts.userId}/scenes/${opts.sceneId}.${ext}`;
+  const safeRevision = (opts.revision || 'latest').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64);
+  const objectPath = `users/${opts.userId}/scenes/${opts.sceneId}-${safeRevision || 'latest'}.${ext}`;
   const file = bucket.file(objectPath);
   const downloadToken = randomUUID();
 

@@ -1,7 +1,7 @@
 /**
  * Gemini Omni Flash via Interactions API (REST).
- * Keep the request close to the public curl examples — extra fields have been
- * observed to surface opaque `5 NOT_FOUND` responses.
+ * Prefer URI delivery so edit/generate responses stay small; polling GET
+ * /interactions/{id} returns multi-MB base64 and breaks long Server Actions.
  * Docs: https://ai.google.dev/gemini-api/docs/omni
  */
 
@@ -12,7 +12,7 @@ const OMNI_MODEL = 'gemini-omni-flash-preview';
 const API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 const REQUEST_TIMEOUT_MS = 280_000;
 const POLL_INTERVAL_MS = 5_000;
-const MAX_POLLS = 48;
+const MAX_POLLS = 54; // ~4.5 min after create returns in-progress
 
 type ImageMime = 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif';
 
@@ -21,7 +21,8 @@ export interface OmniGenerateInput {
   /** Optional image URLs / local /samples paths used as character refs */
   referenceImageUrls?: string[];
   previousInteractionId?: string | null;
-  task?: 'text_to_video' | 'edit' | 'image_to_video' | 'reference_to_video';
+  /** Prefer Files API URIs over inline base64 (important for edits). */
+  preferUriDelivery?: boolean;
 }
 
 export interface OmniGenerateResult {
@@ -131,7 +132,6 @@ function extractVideo(raw: any): {
   for (const part of Array.isArray(raw?.outputs) ? raw.outputs : []) consider(part);
   if (raw?.output_video) consider({ type: 'video', ...raw.output_video });
 
-  // Deep scan — some payloads nest video oddly.
   if (!videoUri && !videoBase64) {
     const stack = [raw];
     while (stack.length) {
@@ -151,6 +151,11 @@ function extractVideo(raw: any): {
   }
 
   return { videoUri, videoBase64, mimeType };
+}
+
+function extractFileId(uri: string): string | null {
+  const match = uri.match(/files\/([a-zA-Z0-9_-]+)/);
+  return match?.[1] || null;
 }
 
 function formatApiError(status: number, raw: any): Error {
@@ -200,7 +205,6 @@ function formatApiError(status: number, raw: any): Error {
 }
 
 async function postInteraction(apiKey: string, body: Record<string, unknown>) {
-  // Docs use ?key=; header alone is also supported — send both for compatibility.
   const response = await fetch(`${API_BASE}/interactions?key=${encodeURIComponent(apiKey)}`, {
     method: 'POST',
     headers: {
@@ -247,6 +251,70 @@ async function getInteraction(apiKey: string, id: string) {
   return raw;
 }
 
+async function getFileState(apiKey: string, fileId: string): Promise<string> {
+  const response = await fetch(
+    `${API_BASE}/files/${encodeURIComponent(fileId)}?key=${encodeURIComponent(apiKey)}`,
+    {
+      method: 'GET',
+      headers: { 'x-goog-api-key': apiKey },
+      signal: AbortSignal.timeout(30_000),
+    }
+  );
+  const raw = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw formatApiError(response.status, raw);
+  }
+  return String(raw?.state || raw?.state?.name || '');
+}
+
+async function downloadFileMedia(apiKey: string, fileUri: string): Promise<Buffer> {
+  const fileId = extractFileId(fileUri);
+  if (!fileId) {
+    throw new Error('Omni returned a video URI we could not parse.');
+  }
+
+  const url = `${API_BASE}/files/${encodeURIComponent(fileId)}:download?alt=media&key=${encodeURIComponent(apiKey)}`;
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: { 'x-goog-api-key': apiKey },
+    signal: AbortSignal.timeout(120_000),
+  });
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    throw new Error(`Omni file download failed (HTTP ${response.status}): ${text.slice(0, 200)}`);
+  }
+  return Buffer.from(await response.arrayBuffer());
+}
+
+async function waitForUriFile(
+  apiKey: string,
+  videoUri: string,
+  mimeType: string | null
+): Promise<{ videoUri: string; videoBase64: string; mimeType: string | null }> {
+  const fileId = extractFileId(videoUri);
+  if (!fileId) {
+    throw new Error('Omni returned a video URI we could not parse.');
+  }
+
+  for (let i = 0; i < MAX_POLLS; i += 1) {
+    const state = (await getFileState(apiKey, fileId)).toUpperCase();
+    if (state === 'ACTIVE' || state.includes('ACTIVE')) {
+      const buffer = await downloadFileMedia(apiKey, videoUri);
+      return {
+        videoUri,
+        videoBase64: buffer.toString('base64'),
+        mimeType: mimeType || 'video/mp4',
+      };
+    }
+    if (state === 'FAILED' || state.includes('FAILED')) {
+      throw new Error('Omni finished preparing the video file but marked it failed.');
+    }
+    await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+  }
+
+  throw new Error('Timed out waiting for Omni video file to become ready.');
+}
+
 async function waitForVideo(apiKey: string, initial: any) {
   let raw = initial;
   let polls = 0;
@@ -254,7 +322,19 @@ async function waitForVideo(apiKey: string, initial: any) {
   while (polls < MAX_POLLS) {
     const status = raw?.status;
     const extracted = extractVideo(raw);
-    if (extracted.videoUri || extracted.videoBase64) {
+
+    // Prefer URI path — avoids keeping multi-MB base64 interaction bodies around.
+    if (extracted.videoUri) {
+      const settled = await waitForUriFile(apiKey, extracted.videoUri, extracted.mimeType);
+      return {
+        raw: { id: raw?.id, status: 'completed' },
+        videoUri: settled.videoUri,
+        videoBase64: settled.videoBase64,
+        mimeType: settled.mimeType,
+      };
+    }
+
+    if (extracted.videoBase64) {
       return { raw, ...extracted };
     }
 
@@ -277,6 +357,7 @@ async function waitForVideo(apiKey: string, initial: any) {
     }
 
     await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+    // Warning: GET may inline base64 — only do this when create did not yield a URI.
     raw = await getInteraction(apiKey, id);
     polls += 1;
   }
@@ -288,9 +369,9 @@ function buildMinimalBody(input: {
   promptText: string;
   contentParts: OmniContentPart[];
   previousInteractionId?: string | null;
+  preferUriDelivery?: boolean;
   aspectRatio?: '16:9' | '9:16';
 }) {
-  // Match the working public curl examples as closely as possible.
   const body: Record<string, unknown> = {
     model: OMNI_MODEL,
     input:
@@ -298,17 +379,21 @@ function buildMinimalBody(input: {
         ? input.promptText
         : input.contentParts,
     store: true,
+    // Keep the unary call on the request so we get URI/base64 without a useless GET.
+    background: false,
   };
 
   if (input.previousInteractionId) {
     body.previous_interaction_id = input.previousInteractionId;
   }
 
-  // Only add response_format when we need aspect ratio — keep shape doc-identical.
-  if (input.aspectRatio && input.aspectRatio !== '16:9') {
+  if (input.preferUriDelivery || (input.aspectRatio && input.aspectRatio !== '16:9')) {
     body.response_format = {
       type: 'video',
-      aspect_ratio: input.aspectRatio,
+      ...(input.preferUriDelivery ? { delivery: 'uri' } : {}),
+      ...(input.aspectRatio && input.aspectRatio !== '16:9'
+        ? { aspect_ratio: input.aspectRatio }
+        : {}),
     };
   }
 
@@ -317,7 +402,10 @@ function buildMinimalBody(input: {
 
 export async function generateWithOmni(input: OmniGenerateInput): Promise<OmniGenerateResult> {
   const apiKey = getApiKey();
-  const requestedUrls = input.referenceImageUrls || [];
+  const isEdit = Boolean(input.previousInteractionId);
+  // Edits should be instruction-only; the prior interaction holds video state.
+  const requestedUrls = isEdit ? [] : input.referenceImageUrls || [];
+  const preferUriDelivery = input.preferUriDelivery !== false;
 
   const images: Array<{ data: string; mime_type: ImageMime }> = [];
   for (const url of requestedUrls) {
@@ -326,7 +414,9 @@ export async function generateWithOmni(input: OmniGenerateInput): Promise<OmniGe
   }
 
   const attachedCount = images.length;
-  const promptText = buildReferencePrompt(input.prompt, attachedCount);
+  const promptText = isEdit
+    ? input.prompt
+    : buildReferencePrompt(input.prompt, attachedCount);
   const contentParts: OmniContentPart[] = [
     ...images.map((image) => ({
       type: 'image' as const,
@@ -340,6 +430,7 @@ export async function generateWithOmni(input: OmniGenerateInput): Promise<OmniGe
     promptText,
     contentParts,
     previousInteractionId: input.previousInteractionId,
+    preferUriDelivery,
   });
 
   console.info('[omni] create interaction', {
@@ -347,6 +438,7 @@ export async function generateWithOmni(input: OmniGenerateInput): Promise<OmniGe
     attachedImages: attachedCount,
     promptChars: promptText.length,
     hasPrevious: Boolean(input.previousInteractionId),
+    preferUriDelivery,
     bodyKeys: Object.keys(primaryBody),
   });
 
@@ -355,25 +447,46 @@ export async function generateWithOmni(input: OmniGenerateInput): Promise<OmniGe
     raw = await postInteraction(apiKey, primaryBody);
   } catch (error: any) {
     const message = String(error?.message || '');
-    const canRetryTextOnly =
-      attachedCount > 0 &&
-      !input.previousInteractionId &&
+    const canRetryWithoutUri =
+      preferUriDelivery &&
       (message.includes('NOT_FOUND') ||
         message.includes('not found') ||
-        message.includes('blocked') ||
-        message.includes('likeness') ||
-        message.includes('reference'));
+        message.includes('INVALID') ||
+        message.includes('delivery'));
 
-    if (!canRetryTextOnly) throw error;
+    if (canRetryWithoutUri) {
+      console.warn('[omni] URI delivery failed; retrying inline delivery', message.slice(0, 300));
+      raw = await postInteraction(
+        apiKey,
+        buildMinimalBody({
+          promptText,
+          contentParts,
+          previousInteractionId: input.previousInteractionId,
+          preferUriDelivery: false,
+        })
+      );
+    } else {
+      const canRetryTextOnly =
+        attachedCount > 0 &&
+        !input.previousInteractionId &&
+        (message.includes('NOT_FOUND') ||
+          message.includes('not found') ||
+          message.includes('blocked') ||
+          message.includes('likeness') ||
+          message.includes('reference'));
 
-    console.warn('[omni] image path failed; retrying text-only', message.slice(0, 300));
-    raw = await postInteraction(
-      apiKey,
-      buildMinimalBody({
-        promptText: input.prompt,
-        contentParts: [{ type: 'text', text: input.prompt }],
-      })
-    );
+      if (!canRetryTextOnly) throw error;
+
+      console.warn('[omni] image path failed; retrying text-only', message.slice(0, 300));
+      raw = await postInteraction(
+        apiKey,
+        buildMinimalBody({
+          promptText: input.prompt,
+          contentParts: [{ type: 'text', text: input.prompt }],
+          preferUriDelivery,
+        })
+      );
+    }
   }
 
   const settled = await waitForVideo(apiKey, raw);
@@ -383,8 +496,6 @@ export async function generateWithOmni(input: OmniGenerateInput): Promise<OmniGe
     videoUri: settled.videoUri,
     videoBase64: settled.videoBase64,
     mimeType: settled.mimeType,
-    // Omit raw interaction payload — it can be enormous and must never
-    // travel back through a Server Action response.
     raw: { id: settled.raw?.id || raw?.id, status: settled.raw?.status || raw?.status },
   };
 }

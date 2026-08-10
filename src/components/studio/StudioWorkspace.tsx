@@ -6,7 +6,8 @@ import { useDropzone } from 'react-dropzone';
 import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { useUserCredits } from '@/hooks/use-user-credits';
 import { useToast } from '@/hooks/use-toast';
-import { generateCharacter, generateScene, saveCharacter } from '@/app/actions/studio-actions';
+import { generateCharacter, saveCharacter } from '@/app/actions/studio-actions';
+import type { GenerateSceneResult } from '@/lib/studio/run-generate-scene';
 import { createCheckoutSession } from '@/app/actions/checkout';
 import { uploadCharacterAsset } from '@/lib/studio/upload-character-asset';
 import {
@@ -216,14 +217,18 @@ export function StudioWorkspace() {
       try {
         // Only user cast stills become generation refs. Sample portraits are
         // display-only (stock faces) — continuity comes from the cast notes.
-        const referenceImageUrls = selectedCharacters
-          .filter((c) => !c.isSample)
-          .map((c) => c.imageUrl)
-          .filter(
-            (url): url is string =>
-              typeof url === 'string' &&
-              (url.startsWith('https://') || url.startsWith('http://'))
-          );
+        // Edits are instruction-only; Omni keeps prior video state by interaction id.
+        const referenceImageUrls =
+          mode === 'edit'
+            ? []
+            : selectedCharacters
+                .filter((c) => !c.isSample)
+                .map((c) => c.imageUrl)
+                .filter(
+                  (url): url is string =>
+                    typeof url === 'string' &&
+                    (url.startsWith('https://') || url.startsWith('http://'))
+                );
 
         const castBible = selectedCharacters
           .map(
@@ -239,21 +244,38 @@ export function StudioWorkspace() {
             ? `${finalPrompt}\n\nCast / continuity notes:\n${castBible}`
             : finalPrompt;
 
-        const result = await generateScene({
-          userId: user!.uid,
-          prompt: promptWithCast,
-          title: title || undefined,
-          characterIds: selectedCharacterIds,
-          referenceImageUrls,
-          previousInteractionId: mode === 'edit' ? interactionId : null,
-          sceneId: sceneId?.startsWith('sample-') ? null : sceneId,
-          mode,
+        // Use the JSON API route — Server Actions consistently die on Omni edits
+        // with RSC "unexpected response" once the payload/time grows.
+        const response = await fetch('/api/studio/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: user!.uid,
+            prompt: promptWithCast,
+            title: title || undefined,
+            characterIds: selectedCharacterIds,
+            referenceImageUrls,
+            previousInteractionId: mode === 'edit' ? interactionId : null,
+            sceneId: sceneId?.startsWith('sample-') ? null : sceneId,
+            mode,
+          }),
         });
+
+        let result: GenerateSceneResult;
+        try {
+          result = (await response.json()) as GenerateSceneResult;
+        } catch {
+          throw new Error(
+            response.ok
+              ? 'That scene didn’t come through. Try again.'
+              : 'That took too long. Give it another try in a moment.'
+          );
+        }
 
         if (!result.ok) {
           toast({
             variant: 'destructive',
-            title: 'Generation failed',
+            title: 'Couldn’t finish the scene',
             description: result.error || 'That scene didn’t come through. Try again.',
           });
           return;
@@ -274,7 +296,7 @@ export function StudioWorkspace() {
           variant: 'destructive',
           title: 'Couldn’t finish the scene',
           description:
-            message.includes('unexpected response')
+            message.includes('unexpected response') || message.includes('Failed to fetch')
               ? 'That took too long. Give it another try in a moment.'
               : message || 'That scene didn’t come through. Try again.',
         });
