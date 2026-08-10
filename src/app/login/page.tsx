@@ -7,7 +7,6 @@ import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { Logo } from '@/components/logo';
 import { EmailPasswordForm } from '@/components/auth/EmailPasswordForm';
-import { BRAND } from '@/lib/brand';
 import { CheckCircle } from 'lucide-react';
 
 export default function LoginPage() {
@@ -43,24 +42,24 @@ export default function LoginPage() {
           Reelwright
         </p>
         <h1 className="text-2xl sm:text-3xl font-display font-semibold tracking-tight mb-4">
-          Generate when you&apos;re ready.
+          Come make something.
         </h1>
         <p className="text-lg text-muted-foreground mb-8 max-w-xl">
-          Browse sample characters and scenes without an account. Sign in when you&apos;re ready for{' '}
-          {BRAND.aiName} to generate scenes and refine them by conversation.
+          Wander the cast and scenes freely. Sign in when you want to shoot — then keep shaping the
+          story in your own words.
         </p>
         <ul className="space-y-4 text-foreground">
           <li className="flex items-center gap-3">
             <CheckCircle className="w-5 h-5 text-primary" />
-            <span>Character references that stay consistent across scenes.</span>
+            <span>Characters that look like themselves from scene to scene.</span>
           </li>
           <li className="flex items-center gap-3">
             <CheckCircle className="w-5 h-5 text-primary" />
-            <span>Continue and edit reels through conversation.</span>
+            <span>Edit by talking — rain heavier, camera closer, mood darker.</span>
           </li>
           <li className="flex items-center gap-3">
             <CheckCircle className="w-5 h-5 text-primary" />
-            <span>Credits only when you actually generate.</span>
+            <span>Your reels stay here, ready for the next cut.</span>
           </li>
         </ul>
       </div>
@@ -73,8 +72,8 @@ export default function LoginPage() {
             <CardTitle className="text-2xl font-display">Welcome</CardTitle>
             <CardDescription>
               {isUnverifiedPasswordUser
-                ? 'Finish creating your account — we are sending a verification email.'
-                : 'Create an account to unlock generation credits.'}
+                ? 'Almost there — check your email to finish signing up.'
+                : 'Create an account to start shooting.'}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">

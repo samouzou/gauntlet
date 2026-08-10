@@ -22,7 +22,7 @@ export function SceneHistory({
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground py-6">
         <Loader2 className="h-4 w-4 animate-spin" />
-        Loading your reels…
+        Gathering your reels…
       </div>
     );
   }
@@ -30,7 +30,7 @@ export function SceneHistory({
   if (sorted.length === 0) {
     return (
       <p className="text-sm text-muted-foreground py-4">
-        No scenes yet. Generate one above and it will show up here.
+        Nothing here yet — shoot a scene above and it will land in this shelf.
       </p>
     );
   }

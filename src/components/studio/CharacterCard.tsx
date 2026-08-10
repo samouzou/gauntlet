@@ -57,7 +57,7 @@ export function CharacterCard({
         <p className="text-xs text-white/70 mt-1 line-clamp-2">{character.description}</p>
         <p className="text-[11px] text-primary mt-2">
           {character.style}
-          {!character.imageUrl ? ' · text cast' : ''}
+          {!character.imageUrl ? ' · description only' : ''}
         </p>
       </div>
     </div>

@@ -22,7 +22,8 @@ const sans = Figtree({
 });
 
 const title = BRAND.name;
-const description = `AI video studio powered by ${BRAND.aiName}. Create characters, generate scenes, and edit by conversation. Explore free — sign in when you generate.`;
+const description =
+  'Create characters, shoot scenes, and keep editing by talking. Reelwright is a studio for stories that continue.';
 const url = process.env.NEXT_PUBLIC_APP_URL || 'https://reelwright.tryverza.com';
 
 export const metadata: Metadata = {
@@ -34,12 +35,11 @@ export const metadata: Metadata = {
   description,
   keywords: [
     'AI video',
-    BRAND.aiName,
     BRAND.name,
-    'character consistency',
-    'scene generation',
-    'AI studio',
-    'video editing',
+    'characters',
+    'scenes',
+    'storytelling',
+    'video studio',
   ],
   openGraph: {
     title,
@@ -85,9 +85,7 @@ export default function RootLayout({
                   <p className="font-display text-foreground/85">
                     {BRAND.name} — make the reel continue.
                   </p>
-                  <p>
-                    Powered by {BRAND.aiName}. Explore free. Credits when you create.
-                  </p>
+                  <p>A studio for characters, scenes, and the next cut.</p>
                 </div>
               </footer>
             </div>

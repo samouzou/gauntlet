@@ -28,7 +28,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Loader2, Sparkles, Clapperboard, UserRoundPlus, ImagePlus, X, History, Plus } from 'lucide-react';
 import { collection, query, where, orderBy } from 'firebase/firestore';
 import type { Character, Product, Scene } from '@/lib/types';
-import { BRAND } from '@/lib/brand';
 import { cn } from '@/lib/utils';
 
 export function StudioWorkspace() {
@@ -188,8 +187,8 @@ export function StudioWorkspace() {
     if ((credits ?? 0) < 1) {
       toast({
         variant: 'destructive',
-        title: 'Out of credits',
-        description: 'Buy a credit pack below to generate or edit.',
+        title: 'You’re out of credits',
+        description: 'Grab a pack below to keep shooting.',
       });
       return false;
     }
@@ -207,8 +206,8 @@ export function StudioWorkspace() {
     if (finalPrompt.length < 8) {
       toast({
         variant: 'destructive',
-        title: 'Add a stronger prompt',
-        description: 'Describe the shot, motion, and mood in a sentence or two.',
+        title: 'Tell us a bit more',
+        description: 'A sentence or two about the shot, motion, and mood goes a long way.',
       });
       return;
     }
@@ -254,7 +253,7 @@ export function StudioWorkspace() {
           toast({
             variant: 'destructive',
             title: 'Generation failed',
-            description: result.error || `${BRAND.aiName} couldn’t finish this scene.`,
+            description: result.error || 'That scene didn’t come through. Try again.',
           });
           return;
         }
@@ -264,19 +263,19 @@ export function StudioWorkspace() {
         setVideoUrl(result.videoUrl || null);
         router.replace(`/studio?scene=${result.sceneId}`);
         toast({
-          title: mode === 'edit' ? 'Edit ready' : 'Scene ready',
-          description: '1 credit used. Keep chatting to refine the reel.',
+          title: mode === 'edit' ? 'Cut ready' : 'Scene ready',
+          description: 'Keep talking to shape what happens next.',
         });
         if (mode === 'edit') setEditInstruction('');
       } catch (err: any) {
         const message = String(err?.message || '');
         toast({
           variant: 'destructive',
-          title: 'Generation failed',
+          title: 'Couldn’t finish the scene',
           description:
             message.includes('unexpected response')
-              ? 'That render took too long. Please try again in a moment.'
-              : message || `${BRAND.aiName} couldn’t finish this scene.`,
+              ? 'That took too long. Give it another try in a moment.'
+              : message || 'That scene didn’t come through. Try again.',
         });
       }
     });
@@ -295,7 +294,7 @@ export function StudioWorkspace() {
       toast({
         variant: 'destructive',
         title: 'Add name and description',
-        description: 'Describe the character so we can generate a portrait still.',
+        description: 'A clear look and temperament helps the portrait land.',
       });
       return;
     }
@@ -324,13 +323,13 @@ export function StudioWorkspace() {
         setCastTab('cast');
         toast({
           title: `${result.name} joined the cast`,
-          description: '1 credit used. Select them for scene continuity.',
+          description: 'Select them for your next scene.',
         });
       } catch (err: any) {
         toast({
           variant: 'destructive',
-          title: 'Character generation failed',
-          description: err.message || 'Could not generate a portrait.',
+          title: 'Couldn’t create that character',
+          description: err.message || 'Try another description, or upload a still.',
         });
       }
     });
@@ -371,8 +370,8 @@ export function StudioWorkspace() {
         toast({
           title: 'Character saved',
           description: imageUrl
-            ? 'Reference still attached so Arc can keep them consistent.'
-            : 'Saved from the description — you can generate a still later.',
+            ? 'Their still is ready for the next scene.'
+            : 'Saved from the description — you can add a portrait later.',
         });
         setSelectedCharacterIds((prev) => [...prev, characterId].slice(0, 3));
         if (imageUrl) setPreviewImage(imageUrl);
@@ -416,8 +415,7 @@ export function StudioWorkspace() {
             Cast. Shoot. Continue.
           </h1>
           <p className="text-muted-foreground mt-2 max-w-2xl text-sm sm:text-base">
-            Explore freely. When you&apos;re ready, {BRAND.aiName} turns prompts into scenes — 1
-            credit each.
+            Pick a cast, describe the moment, and keep shaping what happens next.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -431,7 +429,7 @@ export function StudioWorkspace() {
               ? creditsLoading
                 ? '…'
                 : `${credits ?? 0} credits`
-              : 'Guest · sign in to create'}
+              : 'Looking around'}
           </div>
         </div>
       </div>
@@ -445,8 +443,8 @@ export function StudioWorkspace() {
             </CardTitle>
             <CardDescription>
               {selectedCharacters.length
-                ? `Cast: ${selectedCharacters.map((c) => c.name).join(', ')}`
-                : 'Select a character to keep continuity across shots.'}
+                ? `With ${selectedCharacters.map((c) => c.name).join(', ')}`
+                : 'Choose who belongs in this scene.'}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -458,13 +456,13 @@ export function StudioWorkspace() {
                 <img src={previewImage} alt="" className="h-full w-full object-cover opacity-90" />
               ) : (
                 <div className="h-full w-full flex items-center justify-center text-muted-foreground text-sm">
-                  Your reel preview appears here
+                  Your scene will appear here
                 </div>
               )}
               {isPending && (
                 <div className="absolute inset-0 bg-black/55 backdrop-blur-[2px] flex flex-col items-center justify-center gap-2">
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                  <p className="text-sm text-white/90">{BRAND.aiName} is creating…</p>
+                  <p className="text-sm text-white/90">Creating your scene…</p>
                 </div>
               )}
             </div>
@@ -480,13 +478,13 @@ export function StudioWorkspace() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="prompt">Prompt</Label>
+              <Label htmlFor="prompt">What happens</Label>
               <Textarea
                 id="prompt"
                 rows={5}
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
-                placeholder="Describe the shot, motion, lighting, and emotion…"
+                placeholder="A slow push-in on Mira as neon rain hits the rooftop…"
               />
             </div>
 
@@ -497,12 +495,12 @@ export function StudioWorkspace() {
               onClick={() => runGenerate('generate')}
             >
               {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-              Generate scene · 1 credit
+              Shoot scene
             </Button>
 
             {interactionId && (
               <div className="space-y-2 pt-2 border-t border-border/60">
-                <Label htmlFor="edit">Conversational edit</Label>
+                <Label htmlFor="edit">Keep going</Label>
                 <Textarea
                   id="edit"
                   rows={3}
@@ -516,7 +514,7 @@ export function StudioWorkspace() {
                   disabled={isPending}
                   onClick={() => runGenerate('edit')}
                 >
-                  Apply edit · 1 credit
+                  Apply cut
                 </Button>
               </div>
             )}
@@ -542,8 +540,8 @@ export function StudioWorkspace() {
                 ))}
               </div>
               <p className="text-xs text-muted-foreground mt-3">
-                Select up to 3. Stills help {BRAND.aiName} keep looks consistent; without one, the
-                description is enough.
+                Up to three in a scene. A still helps them stay recognizable; a clear description
+                works too.
               </p>
             </TabsContent>
             <TabsContent value="create" className="mt-4">
@@ -554,8 +552,8 @@ export function StudioWorkspace() {
                     Create character
                   </CardTitle>
                   <CardDescription>
-                    Let {BRAND.aiName} draft a portrait, or upload your own. Saved cast stays ready
-                    for the next scene.
+                    Sketch someone new with a portrait, or bring your own still. They&apos;ll be
+                    ready for the next scene.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
@@ -585,7 +583,7 @@ export function StudioWorkspace() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Reference still (optional upload)</Label>
+                    <Label>Portrait still (optional)</Label>
                     {charAssetPreview ? (
                       <div className="relative overflow-hidden rounded-xl border border-border/70">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -616,10 +614,10 @@ export function StudioWorkspace() {
                         <input {...getInputProps()} />
                         <ImagePlus className="h-5 w-5 text-primary" />
                         <p className="text-sm text-foreground/90">
-                          {isDragActive ? 'Drop the still here' : 'Or upload your own still'}
+                          {isDragActive ? 'Drop it here' : 'Or drop in your own portrait'}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          JPEG / PNG / WebP · under 8MB
+                          JPEG, PNG, or WebP · under 8MB
                         </p>
                       </div>
                     )}
@@ -634,7 +632,7 @@ export function StudioWorkspace() {
                     ) : (
                       <Sparkles className="mr-2 h-4 w-4" />
                     )}
-                    Generate character · 1 credit
+                    Create portrait
                   </Button>
                   <Button
                     variant="secondary"
@@ -642,7 +640,7 @@ export function StudioWorkspace() {
                     disabled={isPending}
                     onClick={handleSaveCharacter}
                   >
-                    Save without generating
+                    Save for later
                   </Button>
                 </CardContent>
               </Card>
@@ -652,8 +650,8 @@ export function StudioWorkspace() {
           {user && (credits ?? 0) < 1 && (
             <Card className="border-primary/30 bg-primary/5">
               <CardHeader className="pb-2">
-                <CardTitle className="font-display text-lg">Need credits?</CardTitle>
-                <CardDescription>Buy a pack to keep generating and editing scenes.</CardDescription>
+                <CardTitle className="font-display text-lg">Keep creating</CardTitle>
+                <CardDescription>Grab a pack when you&apos;re ready for more scenes.</CardDescription>
               </CardHeader>
               <CardContent className="grid gap-3">
                 {(creditPacks || []).map((pack) => (
@@ -688,7 +686,7 @@ export function StudioWorkspace() {
                 ))}
                 {(!creditPacks || creditPacks.length === 0) && (
                   <p className="text-sm text-muted-foreground">
-                    Credit packs aren&apos;t available yet. Check back soon.
+                    Packs will show up here soon.
                   </p>
                 )}
               </CardContent>
@@ -697,8 +695,8 @@ export function StudioWorkspace() {
 
           <Card className="border-border/60 bg-card/30">
             <CardHeader className="pb-2">
-              <CardTitle className="text-base font-display">Sample scenes</CardTitle>
-              <CardDescription>Jump into a ready prompt without signing in.</CardDescription>
+              <CardTitle className="text-base font-display">Try a scene</CardTitle>
+              <CardDescription>Jump into a moment and make it yours.</CardDescription>
             </CardHeader>
             <CardContent className="flex flex-wrap gap-2">
               {SAMPLE_SCENES.map((scene: Scene) => (
@@ -730,9 +728,9 @@ export function StudioWorkspace() {
               <History className="h-3.5 w-3.5" />
               Your reels
             </p>
-            <h2 className="font-display text-2xl font-semibold tracking-tight">Scene history</h2>
+            <h2 className="font-display text-2xl font-semibold tracking-tight">Pick up where you left off</h2>
             <p className="text-muted-foreground mt-1 text-sm">
-              Reopen a past scene to keep editing with {BRAND.aiName}.
+              Open any scene and keep cutting.
             </p>
           </div>
         </div>
@@ -740,7 +738,7 @@ export function StudioWorkspace() {
         {!user ? (
           <div className="rounded-xl border border-dashed border-border/70 bg-card/20 px-4 py-8 text-center">
             <p className="text-sm text-muted-foreground mb-3">
-              Sign in to see the scenes you&apos;ve created.
+              Sign in to see the stories you&apos;ve started.
             </p>
             <Button type="button" variant="secondary" onClick={() => setAuthOpen(true)}>
               Sign in

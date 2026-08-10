@@ -1,11 +1,11 @@
 # Reelwright
 
-AI video studio powered by **Arc**.
+A studio for characters, scenes, and stories that continue.
 
-- Explore sample characters & scenes with no account
-- Sign in only when you generate or edit (credits)
-- Character references for continuity across scenes
-- Conversational scene editing — keep refining by chat
+- Meet a cast and step into scenes without an account
+- Sign in when you’re ready to shoot
+- Characters that stay themselves across scenes
+- Edit by talking — keep refining the next cut
 
 ## Dev
 
@@ -17,7 +17,7 @@ npm run dev
 
 ## Key routes
 
-- `/` — landing with sample cast + reels
-- `/studio` — create / generate / edit
+- `/` — landing with cast + scenes
+- `/studio` — create / shoot / edit
 - `/login` — auth
 - Stripe webhook — `/api/stripe/webhook`

@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { CharacterCard } from '@/components/studio/CharacterCard';
 import { SceneCard } from '@/components/studio/SceneCard';
 import { SAMPLE_CHARACTERS, SAMPLE_SCENES } from '@/lib/studio/samples';
-import { BRAND } from '@/lib/brand';
 import { ArrowRight } from 'lucide-react';
 
 export function LandingPage() {
@@ -33,8 +32,7 @@ export function LandingPage() {
           Characters that hold. Scenes that continue. Edit by talking.
         </h1>
         <p className="mt-3 max-w-xl text-sm sm:text-base text-muted-foreground/90 animate-fade-up [animation-delay:130ms]">
-          Dive into sample casts and reels instantly. Sign in only when you create — {BRAND.aiName}{' '}
-          handles the render, credits keep the studio honest.
+          Meet a cast. Step into a scene. Shape the next moment in your own words.
         </p>
         <div className="mt-8 flex flex-wrap items-center justify-center gap-3 animate-fade-up [animation-delay:190ms]">
           <Button asChild size="lg" className="px-8">
@@ -44,7 +42,7 @@ export function LandingPage() {
             </Link>
           </Button>
           <Button asChild size="lg" variant="outline">
-            <a href="#characters">Browse samples</a>
+            <a href="#characters">Meet the cast</a>
           </Button>
         </div>
       </section>
@@ -52,10 +50,10 @@ export function LandingPage() {
       <section id="characters" className="max-w-6xl mx-auto px-2 sm:px-0 mb-20">
         <div className="flex items-end justify-between gap-4 mb-6">
           <div>
-            <p className="text-xs uppercase tracking-[0.2em] text-primary mb-2">Sample cast</p>
+            <p className="text-xs uppercase tracking-[0.2em] text-primary mb-2">The cast</p>
             <h2 className="font-display text-3xl font-semibold tracking-tight">Start with a character</h2>
             <p className="text-muted-foreground mt-1 text-sm">
-              Pick one and jump into the studio — no account needed to explore.
+              Pick someone who feels right — then take them into a scene.
             </p>
           </div>
         </div>
@@ -73,10 +71,10 @@ export function LandingPage() {
 
       <section id="scenes" className="max-w-6xl mx-auto px-2 sm:px-0 mb-24">
         <div className="mb-6">
-          <p className="text-xs uppercase tracking-[0.2em] text-primary mb-2">Sample reels</p>
-          <h2 className="font-display text-3xl font-semibold tracking-tight">Continue a scene</h2>
+          <p className="text-xs uppercase tracking-[0.2em] text-primary mb-2">Scenes</p>
+          <h2 className="font-display text-3xl font-semibold tracking-tight">Continue a story</h2>
           <p className="text-muted-foreground mt-1 text-sm">
-            Open a reel, remix the prompt, then generate when you&apos;re ready.
+            Open a moment, change the mood, keep going.
           </p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

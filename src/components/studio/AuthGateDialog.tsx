@@ -10,7 +10,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton';
 import { EmailPasswordForm } from '@/components/auth/EmailPasswordForm';
-import { BRAND } from '@/lib/brand';
 import Link from 'next/link';
 
 export function AuthGateDialog({
@@ -24,9 +23,9 @@ export function AuthGateDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="font-display text-2xl">Create a free account to generate</DialogTitle>
+          <DialogTitle className="font-display text-2xl">Save your place</DialogTitle>
           <DialogDescription>
-            Exploring is free. Credits unlock {BRAND.aiName} when you generate or edit a scene.
+            Create a free account to bring this scene to life — and keep every reel you make.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 pt-2">

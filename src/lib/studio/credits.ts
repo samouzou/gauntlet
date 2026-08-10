@@ -19,7 +19,7 @@ export async function spendCredit(userId: string): Promise<void> {
 
       if (!snap.exists) {
         if (STARTER_CREDITS < 1) {
-          throw new Error('You’re out of credits. Buy a pack to keep generating.');
+          throw new Error('You’re out of credits. Grab a pack to keep shooting.');
         }
         tx.set(userRef, {
           email: null,
@@ -34,7 +34,7 @@ export async function spendCredit(userId: string): Promise<void> {
       const data = snap.data() || {};
       const credits = Number(data.credits ?? 0);
       if (!Number.isFinite(credits) || credits < 1) {
-        throw new Error('You’re out of credits. Buy a pack to keep generating.');
+        throw new Error('You’re out of credits. Grab a pack to keep shooting.');
       }
 
       // Prefer set+merge over update so a partial/legacy profile can't 404.

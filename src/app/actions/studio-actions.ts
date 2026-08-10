@@ -7,7 +7,6 @@ import { refundCredit, spendCredit } from '@/lib/studio/credits';
 import { persistGeneratedVideo } from '@/lib/studio/upload-generated-video';
 import { generateCharacterImage } from '@/lib/studio/generate-character-image';
 import { persistCharacterImage } from '@/lib/studio/persist-character-image';
-import { BRAND } from '@/lib/brand';
 import { z } from 'zod';
 
 const imageRefSchema = z
@@ -53,26 +52,26 @@ function humanizeServerError(error: unknown, stage: 'credits' | 'omni' | 'save')
   const code = anyErr?.code;
 
   if (lower.includes('out of credits')) {
-    return 'You’re out of credits. Buy a pack to keep creating.';
+    return 'You’re out of credits. Grab a pack to keep shooting.';
   }
 
   if (
     lower.includes('couldn’t update your credits') ||
     lower.includes("couldn't update your credits")
   ) {
-    return 'We couldn’t update your credit balance. Sign out and back in, then try again.';
+    return 'We couldn’t update your balance. Sign out and back in, then try again.';
   }
 
   if (lower.includes('recognizable people') || lower.includes('blocked this reference')) {
-    return 'That reference still couldn’t be used. Try a different image, or generate from the description alone.';
+    return 'That still couldn’t be used. Try a different image, or go from the description alone.';
   }
 
   if (lower.includes('timed out') || lower.includes('timeout')) {
-    return `${BRAND.aiName} took too long on this one. Try a shorter prompt, or try again in a moment.`;
+    return 'That took too long. Try a shorter scene, or give it another go in a moment.';
   }
 
   if (lower.includes('no video') || lower.includes('without a video')) {
-    return `${BRAND.aiName} finished but didn’t return a playable clip. Try again with a simpler prompt.`;
+    return 'The scene didn’t come back playable. Try a simpler beat.';
   }
 
   if (
@@ -80,7 +79,7 @@ function humanizeServerError(error: unknown, stage: 'credits' | 'omni' | 'save')
     lower.includes('api key') ||
     (lower.includes('not available') && lower.includes('key'))
   ) {
-    return `${BRAND.aiName} isn’t available right now. Please try again shortly.`;
+    return 'The studio isn’t available right now. Please try again shortly.';
   }
 
   if (
@@ -91,12 +90,12 @@ function humanizeServerError(error: unknown, stage: 'credits' | 'omni' | 'save')
     code === 'not-found'
   ) {
     if (stage === 'credits') {
-      return 'We couldn’t update your credit balance. Sign out and back in, then try again.';
+      return 'We couldn’t update your balance. Sign out and back in, then try again.';
     }
     if (stage === 'save') {
       return 'We couldn’t save your scene. Please try again in a moment.';
     }
-    return `${BRAND.aiName} couldn’t start this render. Please try again in a moment.`;
+    return 'Couldn’t start that scene. Please try again in a moment.';
   }
 
   // Never leak vendor / infra wording to the UI.
@@ -104,12 +103,12 @@ function humanizeServerError(error: unknown, stage: 'credits' | 'omni' | 'save')
     /omni|gemini|firestore|firebase|api[_ ]?key|http \d+/i.test(message)
   ) {
     if (stage === 'credits') {
-      return 'We couldn’t update your credit balance. Sign out and back in, then try again.';
+      return 'We couldn’t update your balance. Sign out and back in, then try again.';
     }
     if (stage === 'save') {
       return 'We couldn’t save your work. Please try again in a moment.';
     }
-    return `${BRAND.aiName} hit a snag on this render. Please try again.`;
+    return 'Something went wrong with that scene. Please try again.';
   }
 
   return message.length > 280 ? `${message.slice(0, 280)}…` : message;
@@ -170,7 +169,7 @@ export async function generateScene(input: GenerateSceneInput): Promise<Generate
       await refundCredit(data.userId);
       return {
         ok: false,
-        error: `${BRAND.aiName} finished but didn’t return a playable clip. Your credit was refunded.`,
+        error: 'The scene didn’t come back playable. Your credit was returned.',
       };
     }
 
