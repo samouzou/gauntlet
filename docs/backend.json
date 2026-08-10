@@ -18,7 +18,8 @@
         "name": "string",
         "description": "string",
         "style": "string",
-        "imageUrl": "string | null — optional uploaded reference still (Firebase Storage download URL)",
+        "imageUrl": "string | null — optional uploaded or AI-generated reference still (Firebase Storage download URL)",
+        "source": "string | null — 'generated' when created via Gemini image",
         "createdAt": "timestamp",
         "updatedAt": "timestamp"
       }

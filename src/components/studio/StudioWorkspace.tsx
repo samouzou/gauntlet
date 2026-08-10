@@ -6,7 +6,7 @@ import { useDropzone } from 'react-dropzone';
 import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
 import { useUserCredits } from '@/hooks/use-user-credits';
 import { useToast } from '@/hooks/use-toast';
-import { generateScene, saveCharacter } from '@/app/actions/studio-actions';
+import { generateCharacter, generateScene, saveCharacter } from '@/app/actions/studio-actions';
 import { createCheckoutSession } from '@/app/actions/checkout';
 import { uploadCharacterAsset } from '@/lib/studio/upload-character-asset';
 import {
@@ -38,6 +38,7 @@ export function StudioWorkspace() {
   const [isPending, startTransition] = useTransition();
 
   const [authOpen, setAuthOpen] = useState(false);
+  const [castTab, setCastTab] = useState<'cast' | 'create'>('cast');
   const [selectedCharacterIds, setSelectedCharacterIds] = useState<string[]>([]);
   const [prompt, setPrompt] = useState('');
   const [title, setTitle] = useState('');
@@ -242,6 +243,60 @@ export function StudioWorkspace() {
     });
   };
 
+  const resetCharacterForm = () => {
+    setCharName('');
+    setCharDescription('');
+    setCharStyle('Cinematic, photoreal');
+    clearCharAsset();
+  };
+
+  const handleGenerateCharacter = () => {
+    if (!requireAuthOrCredits()) return;
+    if (charName.trim().length < 2 || charDescription.trim().length < 10) {
+      toast({
+        variant: 'destructive',
+        title: 'Add name and description',
+        description: 'Describe the character so we can generate a portrait still.',
+      });
+      return;
+    }
+
+    startTransition(async () => {
+      try {
+        const result = await generateCharacter({
+          userId: user!.uid,
+          name: charName.trim(),
+          description: charDescription.trim(),
+          style: charStyle.trim() || 'Cinematic portrait',
+        });
+
+        if (!result.ok) {
+          toast({
+            variant: 'destructive',
+            title: 'Character generation failed',
+            description: result.error,
+          });
+          return;
+        }
+
+        setSelectedCharacterIds((prev) => [...prev, result.characterId].slice(0, 3));
+        setPreviewImage(result.imageUrl);
+        resetCharacterForm();
+        setCastTab('cast');
+        toast({
+          title: `${result.name} joined the cast`,
+          description: '1 credit used. Select them for scene continuity.',
+        });
+      } catch (err: any) {
+        toast({
+          variant: 'destructive',
+          title: 'Character generation failed',
+          description: err.message || 'Could not generate a portrait.',
+        });
+      }
+    });
+  };
+
   const handleSaveCharacter = () => {
     if (!user) {
       setAuthOpen(true);
@@ -282,10 +337,8 @@ export function StudioWorkspace() {
         });
         setSelectedCharacterIds((prev) => [...prev, characterId].slice(0, 3));
         if (imageUrl) setPreviewImage(imageUrl);
-        setCharName('');
-        setCharDescription('');
-        setCharStyle('Cinematic, photoreal');
-        clearCharAsset();
+        resetCharacterForm();
+        setCastTab('cast');
       } catch (err: any) {
         toast({
           variant: 'destructive',
@@ -425,7 +478,7 @@ export function StudioWorkspace() {
         </Card>
 
         <div className="space-y-6">
-          <Tabs defaultValue="cast">
+          <Tabs value={castTab} onValueChange={(v) => setCastTab(v as 'cast' | 'create')}>
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="cast">Cast</TabsTrigger>
               <TabsTrigger value="create">New character</TabsTrigger>
@@ -443,8 +496,8 @@ export function StudioWorkspace() {
                 ))}
               </div>
               <p className="text-xs text-muted-foreground mt-3">
-                Select up to 3. Uploaded stills become Omni image refs; text-only cast generates from
-                the description.
+                Select up to 3. Generated or uploaded stills become Omni image refs; text-only cast
+                uses the description.
               </p>
             </TabsContent>
             <TabsContent value="create" className="mt-4">
@@ -455,14 +508,18 @@ export function StudioWorkspace() {
                     Create character
                   </CardTitle>
                   <CardDescription>
-                    Describe the cast. Optionally upload a reference still for continuity. Saving
-                    requires an account.
+                    Generate a portrait still from a description, or upload your own. Generated cast
+                    stays in your list to reuse across scenes.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div className="space-y-2">
                     <Label>Name</Label>
-                    <Input value={charName} onChange={(e) => setCharName(e.target.value)} />
+                    <Input
+                      value={charName}
+                      onChange={(e) => setCharName(e.target.value)}
+                      placeholder="Mira Vale"
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label>Description</Label>
@@ -475,10 +532,14 @@ export function StudioWorkspace() {
                   </div>
                   <div className="space-y-2">
                     <Label>Style</Label>
-                    <Input value={charStyle} onChange={(e) => setCharStyle(e.target.value)} />
+                    <Input
+                      value={charStyle}
+                      onChange={(e) => setCharStyle(e.target.value)}
+                      placeholder="Cinematic neo-noir"
+                    />
                   </div>
                   <div className="space-y-2">
-                    <Label>Reference still (optional)</Label>
+                    <Label>Reference still (optional upload)</Label>
                     {charAssetPreview ? (
                       <div className="relative overflow-hidden rounded-xl border border-border/70">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -502,26 +563,40 @@ export function StudioWorkspace() {
                       <div
                         {...getRootProps()}
                         className={cn(
-                          'flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border/80 bg-secondary/20 px-4 py-8 text-center transition-colors',
+                          'flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border/80 bg-secondary/20 px-4 py-6 text-center transition-colors',
                           isDragActive && 'border-primary bg-primary/10'
                         )}
                       >
                         <input {...getInputProps()} />
                         <ImagePlus className="h-5 w-5 text-primary" />
                         <p className="text-sm text-foreground/90">
-                          {isDragActive ? 'Drop the still here' : 'Drag a still, or click to upload'}
+                          {isDragActive ? 'Drop the still here' : 'Or upload your own still'}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          JPEG / PNG / WebP · under 8MB · skip to generate from text
+                          JPEG / PNG / WebP · under 8MB
                         </p>
                       </div>
                     )}
                   </div>
-                  <Button className="w-full" disabled={isPending} onClick={handleSaveCharacter}>
+                  <Button
+                    className="w-full"
+                    disabled={isPending}
+                    onClick={handleGenerateCharacter}
+                  >
                     {isPending ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : null}
-                    Save character
+                    ) : (
+                      <Sparkles className="mr-2 h-4 w-4" />
+                    )}
+                    Generate character · 1 credit
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    className="w-full"
+                    disabled={isPending}
+                    onClick={handleSaveCharacter}
+                  >
+                    Save without generating
                   </Button>
                 </CardContent>
               </Card>
