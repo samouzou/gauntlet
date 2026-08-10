@@ -27,6 +27,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Loader2, Sparkles, Clapperboard, UserRoundPlus, ImagePlus, X } from 'lucide-react';
 import { collection, query, where, orderBy } from 'firebase/firestore';
 import type { Character, Product, Scene } from '@/lib/types';
+import { BRAND } from '@/lib/brand';
 import { cn } from '@/lib/utils';
 
 export function StudioWorkspace() {
@@ -216,7 +217,7 @@ export function StudioWorkspace() {
           toast({
             variant: 'destructive',
             title: 'Generation failed',
-            description: result.error || 'Something went wrong with Omni.',
+            description: result.error || `${BRAND.aiName} couldn’t finish this scene.`,
           });
           return;
         }
@@ -225,7 +226,7 @@ export function StudioWorkspace() {
         setInteractionId(result.interactionId || null);
         setVideoUrl(result.videoUrl || null);
         toast({
-          title: mode === 'edit' ? 'Edit rendered' : 'Scene generated',
+          title: mode === 'edit' ? 'Edit ready' : 'Scene ready',
           description: '1 credit used. Keep chatting to refine the reel.',
         });
         if (mode === 'edit') setEditInstruction('');
@@ -236,8 +237,8 @@ export function StudioWorkspace() {
           title: 'Generation failed',
           description:
             message.includes('unexpected response')
-              ? 'The render response was too large or timed out. Try again — videos are now stored in Firebase Storage instead of inline.'
-              : message || 'Something went wrong with Omni.',
+              ? 'That render took too long. Please try again in a moment.'
+              : message || `${BRAND.aiName} couldn’t finish this scene.`,
         });
       }
     });
@@ -332,8 +333,8 @@ export function StudioWorkspace() {
         toast({
           title: 'Character saved',
           description: imageUrl
-            ? 'Reference still attached for Omni continuity.'
-            : 'Saved as text cast — generate from the description.',
+            ? 'Reference still attached so Arc can keep them consistent.'
+            : 'Saved from the description — you can generate a still later.',
         });
         setSelectedCharacterIds((prev) => [...prev, characterId].slice(0, 3));
         if (imageUrl) setPreviewImage(imageUrl);
@@ -377,7 +378,8 @@ export function StudioWorkspace() {
             Cast. Shoot. Continue.
           </h1>
           <p className="text-muted-foreground mt-2 max-w-2xl text-sm sm:text-base">
-            Explore freely. Generating or editing a scene with Gemini Omni spends 1 credit.
+            Explore freely. When you&apos;re ready, {BRAND.aiName} turns prompts into scenes — 1
+            credit each.
           </p>
         </div>
         <div className="flex items-center gap-2 text-sm border border-border/70 rounded-md px-3 py-2 bg-card/50">
@@ -386,7 +388,7 @@ export function StudioWorkspace() {
             ? creditsLoading
               ? '…'
               : `${credits ?? 0} credits`
-            : 'Guest · sign in to generate'}
+            : 'Guest · sign in to create'}
         </div>
       </div>
 
@@ -418,7 +420,7 @@ export function StudioWorkspace() {
               {isPending && (
                 <div className="absolute inset-0 bg-black/55 backdrop-blur-[2px] flex flex-col items-center justify-center gap-2">
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                  <p className="text-sm text-white/90">Rendering with Gemini Omni…</p>
+                  <p className="text-sm text-white/90">{BRAND.aiName} is creating…</p>
                 </div>
               )}
             </div>
@@ -496,8 +498,8 @@ export function StudioWorkspace() {
                 ))}
               </div>
               <p className="text-xs text-muted-foreground mt-3">
-                Select up to 3. Generated or uploaded stills become Omni image refs; text-only cast
-                uses the description.
+                Select up to 3. Stills help {BRAND.aiName} keep looks consistent; without one, the
+                description is enough.
               </p>
             </TabsContent>
             <TabsContent value="create" className="mt-4">
@@ -508,8 +510,8 @@ export function StudioWorkspace() {
                     Create character
                   </CardTitle>
                   <CardDescription>
-                    Generate a portrait still from a description, or upload your own. Generated cast
-                    stays in your list to reuse across scenes.
+                    Let {BRAND.aiName} draft a portrait, or upload your own. Saved cast stays ready
+                    for the next scene.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
@@ -642,7 +644,7 @@ export function StudioWorkspace() {
                 ))}
                 {(!creditPacks || creditPacks.length === 0) && (
                   <p className="text-sm text-muted-foreground">
-                    No packs configured yet. Add Stripe products in Firestore.
+                    Credit packs aren&apos;t available yet. Check back soon.
                   </p>
                 )}
               </CardContent>

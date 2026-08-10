@@ -1,11 +1,11 @@
 # Reelwright
 
-AI video studio powered by **Gemini Omni**.
+AI video studio powered by **Arc**.
 
 - Explore sample characters & scenes with no account
 - Sign in only when you generate or edit (credits)
 - Character references for continuity across scenes
-- Conversational scene editing via Omni Interactions API
+- Conversational scene editing — keep refining by chat
 
 ## Dev
 

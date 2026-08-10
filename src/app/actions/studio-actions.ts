@@ -7,6 +7,7 @@ import { refundCredit, spendCredit } from '@/lib/studio/credits';
 import { persistGeneratedVideo } from '@/lib/studio/upload-generated-video';
 import { generateCharacterImage } from '@/lib/studio/generate-character-image';
 import { persistCharacterImage } from '@/lib/studio/persist-character-image';
+import { BRAND } from '@/lib/brand';
 import { z } from 'zod';
 
 const imageRefSchema = z
@@ -47,11 +48,39 @@ export type GenerateSceneResult =
 
 function humanizeServerError(error: unknown, stage: 'credits' | 'omni' | 'save'): string {
   const anyErr = error as any;
-  const message = String(anyErr?.message || 'Generation failed');
+  const message = String(anyErr?.message || 'Something went wrong');
+  const lower = message.toLowerCase();
   const code = anyErr?.code;
 
-  if (message.includes('out of credits') || message.includes('Couldn’t update your credits')) {
-    return message;
+  if (lower.includes('out of credits')) {
+    return 'You’re out of credits. Buy a pack to keep creating.';
+  }
+
+  if (
+    lower.includes('couldn’t update your credits') ||
+    lower.includes("couldn't update your credits")
+  ) {
+    return 'We couldn’t update your credit balance. Sign out and back in, then try again.';
+  }
+
+  if (lower.includes('recognizable people') || lower.includes('blocked this reference')) {
+    return 'That reference still couldn’t be used. Try a different image, or generate from the description alone.';
+  }
+
+  if (lower.includes('timed out') || lower.includes('timeout')) {
+    return `${BRAND.aiName} took too long on this one. Try a shorter prompt, or try again in a moment.`;
+  }
+
+  if (lower.includes('no video') || lower.includes('without a video')) {
+    return `${BRAND.aiName} finished but didn’t return a playable clip. Try again with a simpler prompt.`;
+  }
+
+  if (
+    lower.includes('gemini_api_key') ||
+    lower.includes('api key') ||
+    (lower.includes('not available') && lower.includes('key'))
+  ) {
+    return `${BRAND.aiName} isn’t available right now. Please try again shortly.`;
   }
 
   if (
@@ -62,16 +91,28 @@ function humanizeServerError(error: unknown, stage: 'credits' | 'omni' | 'save')
     code === 'not-found'
   ) {
     if (stage === 'credits') {
-      return 'Couldn’t update your credits (Firestore profile not found). Sign out/in, then try again.';
+      return 'We couldn’t update your credit balance. Sign out and back in, then try again.';
     }
     if (stage === 'save') {
-      return 'Couldn’t save the scene to Firestore. Confirm App Hosting is linked to studio-7012397261-f7ef4.';
+      return 'We couldn’t save your scene. Please try again in a moment.';
     }
-    return 'Omni returned NOT_FOUND. Confirm GEMINI_API_KEY and Omni Flash preview access.';
+    return `${BRAND.aiName} couldn’t start this render. Please try again in a moment.`;
   }
 
-  // Strip huge payloads / stacks from client-facing errors.
-  return message.length > 400 ? `${message.slice(0, 400)}…` : message;
+  // Never leak vendor / infra wording to the UI.
+  if (
+    /omni|gemini|firestore|firebase|api[_ ]?key|http \d+/i.test(message)
+  ) {
+    if (stage === 'credits') {
+      return 'We couldn’t update your credit balance. Sign out and back in, then try again.';
+    }
+    if (stage === 'save') {
+      return 'We couldn’t save your work. Please try again in a moment.';
+    }
+    return `${BRAND.aiName} hit a snag on this render. Please try again.`;
+  }
+
+  return message.length > 280 ? `${message.slice(0, 280)}…` : message;
 }
 
 export async function generateScene(input: GenerateSceneInput): Promise<GenerateSceneResult> {
@@ -128,7 +169,7 @@ export async function generateScene(input: GenerateSceneInput): Promise<Generate
       await refundCredit(data.userId);
       return {
         ok: false,
-        error: 'Omni finished but no playable video URL was returned. Your credit was refunded.',
+        error: `${BRAND.aiName} finished but didn’t return a playable clip. Your credit was refunded.`,
       };
     }
 
@@ -180,7 +221,7 @@ export type GenerateCharacterResult =
   | { ok: false; error: string };
 
 /**
- * Generate a character portrait with Gemini image, store it, and add to cast.
+ * Generate a character portrait with Arc, store it, and add to cast.
  * Costs 1 credit (same as a scene generate).
  */
 export async function generateCharacter(input: {

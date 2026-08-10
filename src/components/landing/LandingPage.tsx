@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { CharacterCard } from '@/components/studio/CharacterCard';
 import { SceneCard } from '@/components/studio/SceneCard';
 import { SAMPLE_CHARACTERS, SAMPLE_SCENES } from '@/lib/studio/samples';
+import { BRAND } from '@/lib/brand';
 import { ArrowRight } from 'lucide-react';
 
 export function LandingPage() {
@@ -32,7 +33,8 @@ export function LandingPage() {
           Characters that hold. Scenes that continue. Edit by talking.
         </h1>
         <p className="mt-3 max-w-xl text-sm sm:text-base text-muted-foreground/90 animate-fade-up [animation-delay:130ms]">
-          Dive into sample casts and reels instantly. Sign in only when you generate — credits keep the studio honest.
+          Dive into sample casts and reels instantly. Sign in only when you create — {BRAND.aiName}{' '}
+          handles the render, credits keep the studio honest.
         </p>
         <div className="mt-8 flex flex-wrap items-center justify-center gap-3 animate-fade-up [animation-delay:190ms]">
           <Button asChild size="lg" className="px-8">

@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { Logo } from '@/components/logo';
 import { EmailPasswordForm } from '@/components/auth/EmailPasswordForm';
+import { BRAND } from '@/lib/brand';
 import { CheckCircle } from 'lucide-react';
 
 export default function LoginPage() {
@@ -45,8 +46,8 @@ export default function LoginPage() {
           Generate when you&apos;re ready.
         </h1>
         <p className="text-lg text-muted-foreground mb-8 max-w-xl">
-          Browse sample characters and scenes without an account. Sign in to spend credits on
-          Gemini Omni generations and conversational edits.
+          Browse sample characters and scenes without an account. Sign in when you&apos;re ready for{' '}
+          {BRAND.aiName} to generate scenes and refine them by conversation.
         </p>
         <ul className="space-y-4 text-foreground">
           <li className="flex items-center gap-3">

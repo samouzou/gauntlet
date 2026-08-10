@@ -58,7 +58,7 @@ export async function spendCredit(userId: string): Promise<void> {
       error?.code === 'not-found'
     ) {
       throw new Error(
-        'Couldn’t update your credits (profile missing in Firestore). Sign out and back in, or buy a pack to recreate your balance.'
+        'We couldn’t update your credit balance. Sign out and back in, then try again.'
       );
     }
     throw error;

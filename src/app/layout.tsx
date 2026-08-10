@@ -7,6 +7,7 @@ import { Header } from '@/components/dashboard/header';
 import { Toaster } from '@/components/ui/toaster';
 import { FirebaseClientProvider } from '@/firebase';
 import { AuthProvider } from '@/components/auth/auth-provider';
+import { BRAND } from '@/lib/brand';
 
 const display = Syne({
   subsets: ['latin'],
@@ -20,9 +21,8 @@ const sans = Figtree({
   weight: ['400', '500', '600', '700'],
 });
 
-const title = 'Reelwright';
-const description =
-  'AI video studio powered by Gemini Omni. Create characters, generate scenes, and edit by conversation. Explore free — sign in when you generate.';
+const title = BRAND.name;
+const description = `AI video studio powered by ${BRAND.aiName}. Create characters, generate scenes, and edit by conversation. Explore free — sign in when you generate.`;
 const url = process.env.NEXT_PUBLIC_APP_URL || 'https://reelwright.tryverza.com';
 
 export const metadata: Metadata = {
@@ -34,7 +34,8 @@ export const metadata: Metadata = {
   description,
   keywords: [
     'AI video',
-    'Gemini Omni',
+    BRAND.aiName,
+    BRAND.name,
     'character consistency',
     'scene generation',
     'AI studio',
@@ -81,8 +82,12 @@ export default function RootLayout({
               <main className="flex-1 container mx-auto p-4 sm:p-6 lg:p-8">{children}</main>
               <footer className="py-8 border-t border-border/50 mt-auto">
                 <div className="container mx-auto flex flex-col items-center gap-2 text-sm text-muted-foreground">
-                  <p className="font-display text-foreground/85">Reelwright — make the reel continue.</p>
-                  <p>Powered by Gemini Omni. Explore free. Credits for generation.</p>
+                  <p className="font-display text-foreground/85">
+                    {BRAND.name} — make the reel continue.
+                  </p>
+                  <p>
+                    Powered by {BRAND.aiName}. Explore free. Credits when you create.
+                  </p>
                 </div>
               </footer>
             </div>
