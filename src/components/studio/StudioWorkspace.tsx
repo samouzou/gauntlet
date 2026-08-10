@@ -16,6 +16,7 @@ import {
   getSampleScene,
 } from '@/lib/studio/samples';
 import { CharacterCard } from '@/components/studio/CharacterCard';
+import { SceneHistory } from '@/components/studio/SceneHistory';
 import { AuthGateDialog } from '@/components/studio/AuthGateDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,7 +25,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, Sparkles, Clapperboard, UserRoundPlus, ImagePlus, X } from 'lucide-react';
+import { Loader2, Sparkles, Clapperboard, UserRoundPlus, ImagePlus, X, History, Plus } from 'lucide-react';
 import { collection, query, where, orderBy } from 'firebase/firestore';
 import type { Character, Product, Scene } from '@/lib/types';
 import { BRAND } from '@/lib/brand';
@@ -70,39 +71,75 @@ export function StudioWorkspace() {
   }, [firestore, user]);
   const { data: myCharacters } = useCollection<Character>(myCharactersQuery);
 
+  const myScenesQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    // Sort client-side to avoid a composite index for userId + updatedAt.
+    return query(collection(firestore, 'scenes'), where('userId', '==', user.uid));
+  }, [firestore, user]);
+  const { data: myScenes, isLoading: scenesLoading } = useCollection<Scene>(myScenesQuery);
+
   const characters = useMemo(() => {
     const mine = (myCharacters || []).map((c) => ({ ...c, isSample: false }));
     return [...SAMPLE_CHARACTERS, ...mine];
   }, [myCharacters]);
 
-  // Prefill from landing deep links
+  const loadSceneIntoWorkspace = useCallback((scene: Scene) => {
+    setSceneId(scene.id);
+    setPrompt(scene.prompt || '');
+    setTitle(scene.title || '');
+    setSelectedCharacterIds(scene.characterIds || []);
+    setVideoUrl(scene.videoUrl || null);
+    setInteractionId(scene.interactionId || null);
+    setPreviewImage(scene.thumbnailUrl || null);
+    setEditInstruction('');
+  }, []);
+
+  const startNewScene = useCallback(() => {
+    setSceneId(null);
+    setPrompt('');
+    setTitle('');
+    setVideoUrl(null);
+    setInteractionId(null);
+    setPreviewImage(null);
+    setEditInstruction('');
+    setSelectedCharacterIds([]);
+    router.replace('/studio');
+  }, [router]);
+
+  // Prefill from landing deep links / history reopen
   useEffect(() => {
     const characterId = searchParams.get('character');
-    const sceneIdParam = searchParams.get('scene');
+    if (!characterId) return;
 
-    if (characterId) {
-      const character = getSampleCharacter(characterId) || characters.find((c) => c.id === characterId);
-      if (character) {
-        setSelectedCharacterIds([character.id]);
-        setPreviewImage(character.imageUrl || null);
-        setPrompt((prev) => prev || `${character.name} in a new scene — ${character.description}`);
-        setTitle((prev) => prev || `${character.name} scene`);
-      }
-    }
+    const character = getSampleCharacter(characterId) || characters.find((c) => c.id === characterId);
+    if (!character) return;
 
-    if (sceneIdParam) {
-      const scene = getSampleScene(sceneIdParam);
-      if (scene) {
-        setSceneId(scene.id);
-        setPrompt(scene.prompt);
-        setTitle(scene.title);
-        setSelectedCharacterIds(scene.characterIds);
-        setPreviewImage(scene.thumbnailUrl || null);
-        setVideoUrl(null);
-        setInteractionId(null);
-      }
-    }
+    setSelectedCharacterIds((prev) => (prev.length ? prev : [character.id]));
+    setPreviewImage((prev) => prev || character.imageUrl || null);
+    setPrompt((prev) => prev || `${character.name} in a new scene — ${character.description}`);
+    setTitle((prev) => prev || `${character.name} scene`);
   }, [searchParams, characters]);
+
+  useEffect(() => {
+    const sceneIdParam = searchParams.get('scene');
+    if (!sceneIdParam) return;
+
+    const sample = getSampleScene(sceneIdParam);
+    if (sample) {
+      if (sceneId !== sample.id) {
+        loadSceneIntoWorkspace({ ...sample, videoUrl: null, interactionId: null });
+      }
+      return;
+    }
+
+    const owned = (myScenes || []).find((s) => s.id === sceneIdParam);
+    if (!owned) return;
+
+    // Load a different scene, or hydrate video once Firestore catches up.
+    if (sceneId !== owned.id || (!videoUrl && owned.videoUrl)) {
+      loadSceneIntoWorkspace(owned);
+    }
+  }, [searchParams, myScenes, sceneId, videoUrl, loadSceneIntoWorkspace]);
 
   const selectedCharacters = characters.filter((c) => selectedCharacterIds.includes(c.id));
 
@@ -225,6 +262,7 @@ export function StudioWorkspace() {
         setSceneId(result.sceneId);
         setInteractionId(result.interactionId || null);
         setVideoUrl(result.videoUrl || null);
+        router.replace(`/studio?scene=${result.sceneId}`);
         toast({
           title: mode === 'edit' ? 'Edit ready' : 'Scene ready',
           description: '1 credit used. Keep chatting to refine the reel.',
@@ -382,13 +420,19 @@ export function StudioWorkspace() {
             credit each.
           </p>
         </div>
-        <div className="flex items-center gap-2 text-sm border border-border/70 rounded-md px-3 py-2 bg-card/50">
-          <Sparkles className="h-4 w-4 text-primary" />
-          {user
-            ? creditsLoading
-              ? '…'
-              : `${credits ?? 0} credits`
-            : 'Guest · sign in to create'}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={startNewScene}>
+            <Plus className="mr-1.5 h-4 w-4" />
+            New scene
+          </Button>
+          <div className="flex items-center gap-2 text-sm border border-border/70 rounded-md px-3 py-2 bg-card/50">
+            <Sparkles className="h-4 w-4 text-primary" />
+            {user
+              ? creditsLoading
+                ? '…'
+                : `${credits ?? 0} credits`
+              : 'Guest · sign in to create'}
+          </div>
         </div>
       </div>
 
@@ -662,7 +706,14 @@ export function StudioWorkspace() {
                   key={scene.id}
                   size="sm"
                   variant="outline"
-                  onClick={() => router.push(`/studio?scene=${scene.id}`)}
+                  onClick={() => {
+                    loadSceneIntoWorkspace({
+                      ...scene,
+                      videoUrl: null,
+                      interactionId: null,
+                    });
+                    router.replace(`/studio?scene=${scene.id}`);
+                  }}
                 >
                   {scene.title}
                 </Button>
@@ -671,6 +722,42 @@ export function StudioWorkspace() {
           </Card>
         </div>
       </div>
+
+      <section className="space-y-4 pt-2 border-t border-border/50">
+        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.2em] text-primary mb-2 flex items-center gap-2">
+              <History className="h-3.5 w-3.5" />
+              Your reels
+            </p>
+            <h2 className="font-display text-2xl font-semibold tracking-tight">Scene history</h2>
+            <p className="text-muted-foreground mt-1 text-sm">
+              Reopen a past scene to keep editing with {BRAND.aiName}.
+            </p>
+          </div>
+        </div>
+
+        {!user ? (
+          <div className="rounded-xl border border-dashed border-border/70 bg-card/20 px-4 py-8 text-center">
+            <p className="text-sm text-muted-foreground mb-3">
+              Sign in to see the scenes you&apos;ve created.
+            </p>
+            <Button type="button" variant="secondary" onClick={() => setAuthOpen(true)}>
+              Sign in
+            </Button>
+          </div>
+        ) : (
+          <SceneHistory
+            scenes={myScenes || []}
+            activeSceneId={sceneId}
+            isLoading={scenesLoading}
+            onSelect={(scene) => {
+              loadSceneIntoWorkspace(scene);
+              router.replace(`/studio?scene=${scene.id}`);
+            }}
+          />
+        )}
+      </section>
 
       <AuthGateDialog open={authOpen} onOpenChange={setAuthOpen} />
     </div>

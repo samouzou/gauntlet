@@ -157,6 +157,7 @@ export async function generateScene(input: GenerateSceneInput): Promise<Generate
       userId: data.userId,
       interactionId: result.interactionId || null,
       videoUrl: videoUrl || null,
+      thumbnailUrl: videoUrl || null,
       mimeType: result.mimeType || null,
       status: videoUrl ? 'ready' : 'error',
       updatedAt: FieldValue.serverTimestamp(),

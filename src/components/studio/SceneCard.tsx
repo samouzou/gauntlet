@@ -27,13 +27,27 @@ export function SceneCard({
       onClick={onSelect}
       role={onSelect ? 'button' : undefined}
     >
-      <div className="aspect-video overflow-hidden">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={scene.thumbnailUrl}
-          alt={scene.title}
-          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-        />
+      <div className="aspect-video overflow-hidden bg-secondary/40">
+        {scene.thumbnailUrl || scene.videoUrl ? (
+          scene.videoUrl && !scene.thumbnailUrl ? (
+            <video
+              src={scene.videoUrl}
+              muted
+              playsInline
+              preload="metadata"
+              className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+            />
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={scene.thumbnailUrl || scene.videoUrl || ''}
+              alt={scene.title}
+              className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+            />
+          )
+        ) : (
+          <div className="h-full w-full bg-secondary/50" />
+        )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent" />
         <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
           <div className="h-12 w-12 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg shadow-primary/30">

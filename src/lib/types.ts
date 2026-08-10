@@ -22,13 +22,16 @@ export interface Scene {
   id: string;
   title: string;
   prompt: string;
-  thumbnailUrl: string;
+  thumbnailUrl?: string | null;
   videoUrl?: string | null;
   characterIds: string[];
   interactionId?: string | null;
   isSample?: boolean;
   userId?: string | null;
   status?: 'draft' | 'generating' | 'ready' | 'error';
+  /** Firestore Timestamp or millis — used for history sorting. */
+  createdAt?: unknown;
+  updatedAt?: unknown;
 }
 
 export type StudioMode = 'explore' | 'create';
