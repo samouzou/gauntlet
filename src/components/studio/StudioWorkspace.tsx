@@ -214,9 +214,10 @@ export function StudioWorkspace() {
 
     startTransition(async () => {
       try {
-        // Only user-uploaded stills (https Storage URLs) become Omni image refs.
-        // Sample art + text-only cast contribute description → text_to_video.
+        // Only user cast stills become generation refs. Sample portraits are
+        // display-only (stock faces) — continuity comes from the cast notes.
         const referenceImageUrls = selectedCharacters
+          .filter((c) => !c.isSample)
           .map((c) => c.imageUrl)
           .filter(
             (url): url is string =>

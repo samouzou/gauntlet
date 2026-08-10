@@ -7,8 +7,8 @@ export const SAMPLE_CHARACTERS: Character[] = [
     name: 'Mira Vale',
     description: 'A sharp-eyed courier in a rain-slick neon city. Soft armor, silver hair, calm defiance.',
     style: 'Cinematic neo-noir, anamorphic lens',
-    // Illustrated (not stock photos) so Omni reference uploads stay policy-safe.
-    imageUrl: '/samples/sample-mira.jpg',
+    // Display-only Unsplash portraits. Samples are never sent as generation refs.
+    imageUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=640&h=800&fit=crop&q=80',
     isSample: true,
   },
   {
@@ -16,7 +16,7 @@ export const SAMPLE_CHARACTERS: Character[] = [
     name: 'Orin Ash',
     description: 'Desert cartographer with sun-faded coat and ink-stained hands. Quiet, mythic presence.',
     style: 'Warm desert epic, golden hour',
-    imageUrl: '/samples/sample-orin.jpg',
+    imageUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=640&h=800&fit=crop&q=80',
     isSample: true,
   },
   {
@@ -24,7 +24,7 @@ export const SAMPLE_CHARACTERS: Character[] = [
     name: 'Kade Lin',
     description: 'Street magician who treats reality like a deck of cards. Playful eyes, tailored black suit.',
     style: 'Stylized urban fantasy',
-    imageUrl: '/samples/sample-kade.jpg',
+    imageUrl: 'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=640&h=800&fit=crop&q=80',
     isSample: true,
   },
   {
@@ -32,7 +32,7 @@ export const SAMPLE_CHARACTERS: Character[] = [
     name: 'Nyx Calder',
     description: 'Orbital mechanic between shifts — grease on cheek, soft smile, stars in the viewport.',
     style: 'Hard sci-fi, soft lighting',
-    imageUrl: '/samples/sample-nyx.jpg',
+    imageUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=640&h=800&fit=crop&q=80',
     isSample: true,
   },
 ];
