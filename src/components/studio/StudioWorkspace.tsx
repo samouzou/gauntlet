@@ -211,19 +211,32 @@ export function StudioWorkspace() {
           mode,
         });
 
+        if (!result.ok) {
+          toast({
+            variant: 'destructive',
+            title: 'Generation failed',
+            description: result.error || 'Something went wrong with Omni.',
+          });
+          return;
+        }
+
         setSceneId(result.sceneId);
         setInteractionId(result.interactionId || null);
-        setVideoUrl(result.videoDataUrl || result.videoUrl || null);
+        setVideoUrl(result.videoUrl || null);
         toast({
           title: mode === 'edit' ? 'Edit rendered' : 'Scene generated',
           description: '1 credit used. Keep chatting to refine the reel.',
         });
         if (mode === 'edit') setEditInstruction('');
       } catch (err: any) {
+        const message = String(err?.message || '');
         toast({
           variant: 'destructive',
           title: 'Generation failed',
-          description: err.message || 'Something went wrong with Omni.',
+          description:
+            message.includes('unexpected response')
+              ? 'The render response was too large or timed out. Try again — videos are now stored in Firebase Storage instead of inline.'
+              : message || 'Something went wrong with Omni.',
         });
       }
     });

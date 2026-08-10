@@ -383,6 +383,8 @@ export async function generateWithOmni(input: OmniGenerateInput): Promise<OmniGe
     videoUri: settled.videoUri,
     videoBase64: settled.videoBase64,
     mimeType: settled.mimeType,
-    raw: settled.raw,
+    // Omit raw interaction payload — it can be enormous and must never
+    // travel back through a Server Action response.
+    raw: { id: settled.raw?.id || raw?.id, status: settled.raw?.status || raw?.status },
   };
 }

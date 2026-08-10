@@ -4,6 +4,7 @@ import { adminDb } from '@/firebase/admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { generateWithOmni } from '@/lib/studio/omni';
 import { refundCredit, spendCredit } from '@/lib/studio/credits';
+import { persistGeneratedVideo } from '@/lib/studio/upload-generated-video';
 import { z } from 'zod';
 
 const imageRefSchema = z
@@ -30,16 +31,27 @@ const generateSchema = z.object({
 
 export type GenerateSceneInput = z.infer<typeof generateSchema>;
 
-function humanizeServerError(error: unknown, stage: 'credits' | 'omni' | 'save'): Error {
+export type GenerateSceneResult =
+  | {
+      ok: true;
+      sceneId: string;
+      interactionId: string;
+      videoUrl: string | null;
+    }
+  | {
+      ok: false;
+      error: string;
+    };
+
+function humanizeServerError(error: unknown, stage: 'credits' | 'omni' | 'save'): string {
   const anyErr = error as any;
   const message = String(anyErr?.message || 'Generation failed');
   const code = anyErr?.code;
 
   if (message.includes('out of credits') || message.includes('Couldn’t update your credits')) {
-    return error instanceof Error ? error : new Error(message);
+    return message;
   }
 
-  // Firebase Admin gRPC often surfaces as "5 NOT_FOUND:" with little detail.
   if (
     message.trim() === '5 NOT_FOUND:' ||
     message.trim() === '5 NOT_FOUND' ||
@@ -48,30 +60,30 @@ function humanizeServerError(error: unknown, stage: 'credits' | 'omni' | 'save')
     code === 'not-found'
   ) {
     if (stage === 'credits') {
-      return new Error(
-        'Couldn’t update your credits (Firestore profile not found). Sign out/in to recreate your balance, then try again.'
-      );
+      return 'Couldn’t update your credits (Firestore profile not found). Sign out/in, then try again.';
     }
     if (stage === 'save') {
-      return new Error(
-        'Scene saved failed (Firestore NOT_FOUND). Confirm App Hosting is linked to studio-7012397261-f7ef4.'
-      );
+      return 'Couldn’t save the scene to Firestore. Confirm App Hosting is linked to studio-7012397261-f7ef4.';
     }
-    return new Error(
-      'Omni returned NOT_FOUND. Confirm GEMINI_API_KEY is bound in apphosting.yaml and the key can use gemini-omni-flash-preview.'
-    );
+    return 'Omni returned NOT_FOUND. Confirm GEMINI_API_KEY and Omni Flash preview access.';
   }
 
-  return error instanceof Error ? error : new Error(message);
+  // Strip huge payloads / stacks from client-facing errors.
+  return message.length > 400 ? `${message.slice(0, 400)}…` : message;
 }
 
-export async function generateScene(input: GenerateSceneInput) {
-  const data = generateSchema.parse(input);
+export async function generateScene(input: GenerateSceneInput): Promise<GenerateSceneResult> {
+  let data: GenerateSceneInput;
+  try {
+    data = generateSchema.parse(input);
+  } catch (error: any) {
+    return { ok: false, error: error?.message || 'Invalid generate request.' };
+  }
 
   try {
     await spendCredit(data.userId);
   } catch (error) {
-    throw humanizeServerError(error, 'credits');
+    return { ok: false, error: humanizeServerError(error, 'credits') };
   }
 
   try {
@@ -85,38 +97,49 @@ export async function generateScene(input: GenerateSceneInput) {
       ? adminDb.collection('scenes').doc(data.sceneId)
       : adminDb.collection('scenes').doc();
 
+    // Never return base64 through the Server Action — it breaks the RSC response
+    // ("An unexpected response was received from the server").
+    const videoUrl = await persistGeneratedVideo({
+      userId: data.userId,
+      sceneId: sceneRef.id,
+      videoBase64: result.videoBase64,
+      videoUri: result.videoUri,
+      mimeType: result.mimeType,
+    });
+
     const payload = {
       title: data.title || data.prompt.slice(0, 60),
       prompt: data.prompt,
       characterIds: data.characterIds || [],
       userId: data.userId,
       interactionId: result.interactionId || null,
-      videoUrl: result.videoUri || null,
-      videoBase64: result.videoBase64 ? true : false,
+      videoUrl: videoUrl || null,
       mimeType: result.mimeType || null,
-      status: 'ready',
+      status: videoUrl ? 'ready' : 'error',
       updatedAt: FieldValue.serverTimestamp(),
       ...(data.sceneId ? {} : { createdAt: FieldValue.serverTimestamp() }),
     };
 
-    try {
-      await sceneRef.set(payload, { merge: true });
-    } catch (error) {
-      throw humanizeServerError(error, 'save');
+    await sceneRef.set(payload, { merge: true });
+
+    if (!videoUrl) {
+      await refundCredit(data.userId);
+      return {
+        ok: false,
+        error: 'Omni finished but no playable video URL was returned. Your credit was refunded.',
+      };
     }
 
     return {
+      ok: true,
       sceneId: sceneRef.id,
-      interactionId: result.interactionId,
-      videoUrl: result.videoUri,
-      videoDataUrl:
-        result.videoBase64 && result.mimeType
-          ? `data:${result.mimeType};base64,${result.videoBase64}`
-          : null,
+      interactionId: result.interactionId || '',
+      videoUrl,
     };
   } catch (error: any) {
     await refundCredit(data.userId);
-    throw humanizeServerError(error, 'omni');
+    console.error('[generateScene] failed', error);
+    return { ok: false, error: humanizeServerError(error, 'omni') };
   }
 }
 
@@ -125,7 +148,6 @@ const characterSchema = z.object({
   name: z.string().min(2).max(80),
   description: z.string().min(10).max(2000),
   style: z.string().min(2).max(200),
-  /** Optional Firebase Storage download URL from an uploaded still. */
   imageUrl: imageRefSchema.optional().nullable(),
 });
 
