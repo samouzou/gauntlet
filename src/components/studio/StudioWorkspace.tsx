@@ -645,7 +645,7 @@ export function StudioWorkspace() {
                         : 'Drop a short clip to reshape'}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      mp4 / webm · about 10 seconds · under 80MB
+                      mp4 / webm · about 10 seconds · under 200MB
                     </p>
                   </div>
                 )}

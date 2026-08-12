@@ -169,8 +169,8 @@ export async function fetchRemoteVideoBuffer(url: string): Promise<{
   if (buffer.byteLength === 0) {
     throw new Error('Source clip download was empty.');
   }
-  if (buffer.byteLength > 80 * 1024 * 1024) {
-    throw new Error('Source clip is too large. Keep uploads under 80MB.');
+  if (buffer.byteLength > 200 * 1024 * 1024) {
+    throw new Error('Source clip is too large. Keep uploads under 200MB.');
   }
   return { buffer, mimeType };
 }

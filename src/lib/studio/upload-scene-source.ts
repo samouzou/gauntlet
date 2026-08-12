@@ -9,7 +9,7 @@ import {
 } from 'firebase/storage';
 
 /** Soft caps for Omni uploaded-video edits (~10s clips). */
-export const SCENE_SOURCE_MAX_BYTES = 80 * 1024 * 1024;
+export const SCENE_SOURCE_MAX_BYTES = 200 * 1024 * 1024;
 export const SCENE_SOURCE_MAX_DURATION_SEC = 10;
 
 const ALLOWED_TYPES = new Set([
@@ -51,7 +51,7 @@ export async function uploadSceneSource(opts: {
     throw new Error('Upload an mp4, webm, or QuickTime clip.');
   }
   if (file.size > SCENE_SOURCE_MAX_BYTES) {
-    throw new Error('Keep source clips under 80MB.');
+    throw new Error('Keep source clips under 200MB.');
   }
 
   const durationSec = await readVideoDurationSeconds(file);
