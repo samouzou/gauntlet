@@ -24,6 +24,8 @@ export interface Scene {
   prompt: string;
   thumbnailUrl?: string | null;
   videoUrl?: string | null;
+  /** Original uploaded clip the user asked Arc to reshape (if any). */
+  sourceVideoUrl?: string | null;
   characterIds: string[];
   interactionId?: string | null;
   isSample?: boolean;

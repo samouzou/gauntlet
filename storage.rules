@@ -35,5 +35,11 @@ service firebase.storage {
       allow read: if isOwner(userId);
       allow write: if isOwner(userId) && (isImage() || isVideo());
     }
+
+    // User-uploaded source clips for Arc reshape (edit_upload)
+    match /users/{userId}/scene-sources/{allPaths=**} {
+      allow read: if isOwner(userId);
+      allow write: if isOwner(userId) && isVideo();
+    }
   }
 }

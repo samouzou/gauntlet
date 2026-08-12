@@ -23,6 +23,12 @@ export interface OmniGenerateInput {
   previousInteractionId?: string | null;
   /** Prefer Files API URIs over inline base64 (important for edits). */
   preferUriDelivery?: boolean;
+  /**
+   * Active Gemini Files API URI for an uploaded source clip.
+   * Used only when there is no previousInteractionId (first uploaded-video edit).
+   */
+  sourceVideoUri?: string | null;
+  sourceVideoMimeType?: string | null;
 }
 
 export interface OmniGenerateResult {
@@ -201,6 +207,18 @@ function formatApiError(status: number, raw: any): Error {
     );
   }
 
+  if (
+    lower.includes('not available in') ||
+    lower.includes('not supported in') ||
+    lower.includes('european economic area') ||
+    lower.includes('eea') ||
+    lower.includes('united kingdom') ||
+    lower.includes('switzerland') ||
+    (lower.includes('region') && lower.includes('upload'))
+  ) {
+    return new Error('REGION_BLOCKED_UPLOAD_EDIT');
+  }
+
   return new Error(`Omni error (HTTP ${status}): ${composed}`);
 }
 
@@ -365,9 +383,14 @@ async function waitForVideo(apiKey: string, initial: any) {
   throw new Error('Timed out waiting for Omni video. Try again in a moment.');
 }
 
+type InteractionInputPart =
+  | OmniContentPart
+  | { type: 'document'; uri: string }
+  | { type: 'video'; uri: string; mime_type?: string };
+
 function buildMinimalBody(input: {
   promptText: string;
-  contentParts: OmniContentPart[];
+  contentParts: InteractionInputPart[];
   previousInteractionId?: string | null;
   preferUriDelivery?: boolean;
   aspectRatio?: '16:9' | '9:16';
@@ -402,9 +425,11 @@ function buildMinimalBody(input: {
 
 export async function generateWithOmni(input: OmniGenerateInput): Promise<OmniGenerateResult> {
   const apiKey = getApiKey();
-  const isEdit = Boolean(input.previousInteractionId);
-  // Edits should be instruction-only; the prior interaction holds video state.
-  const requestedUrls = isEdit ? [] : input.referenceImageUrls || [];
+  const isFollowUpEdit = Boolean(input.previousInteractionId);
+  const isUploadEdit = Boolean(input.sourceVideoUri) && !isFollowUpEdit;
+  // Follow-up edits are instruction-only; the prior interaction holds video state.
+  // First-turn upload edits use the source clip + directive (no character stills).
+  const requestedUrls = isFollowUpEdit || isUploadEdit ? [] : input.referenceImageUrls || [];
   const preferUriDelivery = input.preferUriDelivery !== false;
 
   const images: Array<{ data: string; mime_type: ImageMime }> = [];
@@ -414,17 +439,33 @@ export async function generateWithOmni(input: OmniGenerateInput): Promise<OmniGe
   }
 
   const attachedCount = images.length;
-  const promptText = isEdit
-    ? input.prompt
-    : buildReferencePrompt(input.prompt, attachedCount);
-  const contentParts: OmniContentPart[] = [
-    ...images.map((image) => ({
-      type: 'image' as const,
-      data: image.data,
-      mime_type: image.mime_type,
-    })),
-    { type: 'text', text: promptText },
-  ];
+  const promptText =
+    isFollowUpEdit || isUploadEdit
+      ? input.prompt
+      : buildReferencePrompt(input.prompt, attachedCount);
+
+  let contentParts: InteractionInputPart[];
+  if (isUploadEdit && input.sourceVideoUri) {
+    // Omni "Edit your own videos" uses document + text (Files API URI).
+    contentParts = [
+      { type: 'document', uri: input.sourceVideoUri },
+      {
+        type: 'text',
+        text: promptText.includes('Keep everything else the same')
+          ? promptText
+          : `${promptText}\n\nKeep everything else the same.`,
+      },
+    ];
+  } else {
+    contentParts = [
+      ...images.map((image) => ({
+        type: 'image' as const,
+        data: image.data,
+        mime_type: image.mime_type,
+      })),
+      { type: 'text', text: promptText },
+    ];
+  }
 
   const primaryBody = buildMinimalBody({
     promptText,
@@ -438,6 +479,7 @@ export async function generateWithOmni(input: OmniGenerateInput): Promise<OmniGe
     attachedImages: attachedCount,
     promptChars: promptText.length,
     hasPrevious: Boolean(input.previousInteractionId),
+    hasSourceVideo: Boolean(input.sourceVideoUri),
     preferUriDelivery,
     bodyKeys: Object.keys(primaryBody),
   });
@@ -447,45 +489,78 @@ export async function generateWithOmni(input: OmniGenerateInput): Promise<OmniGe
     raw = await postInteraction(apiKey, primaryBody);
   } catch (error: any) {
     const message = String(error?.message || '');
-    const canRetryWithoutUri =
-      preferUriDelivery &&
-      (message.includes('NOT_FOUND') ||
-        message.includes('not found') ||
-        message.includes('INVALID') ||
-        message.includes('delivery'));
 
-    if (canRetryWithoutUri) {
-      console.warn('[omni] URI delivery failed; retrying inline delivery', message.slice(0, 300));
-      raw = await postInteraction(
-        apiKey,
-        buildMinimalBody({
-          promptText,
-          contentParts,
-          previousInteractionId: input.previousInteractionId,
-          preferUriDelivery: false,
-        })
-      );
+    // Retry upload-edit with video part shape if document is rejected.
+    if (
+      isUploadEdit &&
+      input.sourceVideoUri &&
+      (message.includes('INVALID') ||
+        message.includes('document') ||
+        message.includes('unsupported') ||
+        message.includes('NOT_FOUND'))
+    ) {
+      console.warn('[omni] document input failed; retrying video uri part', message.slice(0, 300));
+      try {
+        raw = await postInteraction(
+          apiKey,
+          buildMinimalBody({
+            promptText,
+            contentParts: [
+              {
+                type: 'video',
+                uri: input.sourceVideoUri,
+                mime_type: input.sourceVideoMimeType || 'video/mp4',
+              },
+              { type: 'text', text: promptText },
+            ],
+            preferUriDelivery,
+          })
+        );
+      } catch (retryError) {
+        throw retryError;
+      }
     } else {
-      const canRetryTextOnly =
-        attachedCount > 0 &&
-        !input.previousInteractionId &&
+      const canRetryWithoutUri =
+        preferUriDelivery &&
         (message.includes('NOT_FOUND') ||
           message.includes('not found') ||
-          message.includes('blocked') ||
-          message.includes('likeness') ||
-          message.includes('reference'));
+          message.includes('INVALID') ||
+          message.includes('delivery'));
 
-      if (!canRetryTextOnly) throw error;
+      if (canRetryWithoutUri) {
+        console.warn('[omni] URI delivery failed; retrying inline delivery', message.slice(0, 300));
+        raw = await postInteraction(
+          apiKey,
+          buildMinimalBody({
+            promptText,
+            contentParts,
+            previousInteractionId: input.previousInteractionId,
+            preferUriDelivery: false,
+          })
+        );
+      } else {
+        const canRetryTextOnly =
+          attachedCount > 0 &&
+          !input.previousInteractionId &&
+          !isUploadEdit &&
+          (message.includes('NOT_FOUND') ||
+            message.includes('not found') ||
+            message.includes('blocked') ||
+            message.includes('likeness') ||
+            message.includes('reference'));
 
-      console.warn('[omni] image path failed; retrying text-only', message.slice(0, 300));
-      raw = await postInteraction(
-        apiKey,
-        buildMinimalBody({
-          promptText: input.prompt,
-          contentParts: [{ type: 'text', text: input.prompt }],
-          preferUriDelivery,
-        })
-      );
+        if (!canRetryTextOnly) throw error;
+
+        console.warn('[omni] image path failed; retrying text-only', message.slice(0, 300));
+        raw = await postInteraction(
+          apiKey,
+          buildMinimalBody({
+            promptText: input.prompt,
+            contentParts: [{ type: 'text', text: input.prompt }],
+            preferUriDelivery,
+          })
+        );
+      }
     }
   }
 

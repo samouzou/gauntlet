@@ -1,6 +1,7 @@
 import { adminDb } from '@/firebase/admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { generateWithOmni } from '@/lib/studio/omni';
+import { fetchRemoteVideoBuffer, uploadVideoToFilesApi } from '@/lib/studio/files-api';
 import { refundCredit, spendCredit } from '@/lib/studio/credits';
 import { persistGeneratedVideo } from '@/lib/studio/upload-generated-video';
 import { z } from 'zod';
@@ -16,16 +17,35 @@ const imageRefSchema = z
     'Reference image must be a public /samples path or http(s) URL'
   );
 
-export const generateSceneSchema = z.object({
-  userId: z.string().min(1),
-  prompt: z.string().min(8).max(4000),
-  title: z.string().min(2).max(120).optional(),
-  characterIds: z.array(z.string()).max(6).optional().default([]),
-  referenceImageUrls: z.array(imageRefSchema).max(6).optional().default([]),
-  previousInteractionId: z.string().optional().nullable(),
-  sceneId: z.string().optional().nullable(),
-  mode: z.enum(['generate', 'edit']).default('generate'),
-});
+const httpsUrlSchema = z
+  .string()
+  .min(1)
+  .refine(
+    (value) => value.startsWith('https://') || value.startsWith('http://'),
+    'Source video must be an http(s) URL'
+  );
+
+export const generateSceneSchema = z
+  .object({
+    userId: z.string().min(1),
+    prompt: z.string().min(8).max(4000),
+    title: z.string().min(2).max(120).optional(),
+    characterIds: z.array(z.string()).max(6).optional().default([]),
+    referenceImageUrls: z.array(imageRefSchema).max(6).optional().default([]),
+    previousInteractionId: z.string().optional().nullable(),
+    sceneId: z.string().optional().nullable(),
+    sourceVideoUrl: httpsUrlSchema.optional().nullable(),
+    mode: z.enum(['generate', 'edit', 'edit_upload']).default('generate'),
+  })
+  .superRefine((data, ctx) => {
+    if (data.mode === 'edit_upload' && !data.sourceVideoUrl && !data.previousInteractionId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Upload a short clip before asking Arc to reshape it.',
+        path: ['sourceVideoUrl'],
+      });
+    }
+  });
 
 export type GenerateSceneInput = z.infer<typeof generateSceneSchema>;
 
@@ -50,6 +70,10 @@ export function humanizeServerError(
   const lower = message.toLowerCase();
   const code = anyErr?.code;
 
+  if (message.includes('REGION_BLOCKED_UPLOAD_EDIT') || lower.includes('region_blocked')) {
+    return 'This kind of cut isn’t available in your region yet.';
+  }
+
   if (lower.includes('out of credits')) {
     return 'You’re out of credits. Grab a pack to keep shooting.';
   }
@@ -71,6 +95,14 @@ export function humanizeServerError(
 
   if (lower.includes('no video') || lower.includes('without a video')) {
     return 'The scene didn’t come back playable. Try a simpler beat.';
+  }
+
+  if (
+    lower.includes('source clip') ||
+    lower.includes('files api') ||
+    lower.includes('10 second')
+  ) {
+    return message.length > 280 ? `${message.slice(0, 280)}…` : message;
   }
 
   if (
@@ -112,7 +144,9 @@ export function humanizeServerError(
 
 /**
  * Shared generate/edit pipeline used by the API route (preferred) and Server Action.
- * Edits are intentionally text-only + previous_interaction_id — no image re-upload.
+ * - generate: text (+ optional character stills)
+ * - edit: instruction-only via previous_interaction_id
+ * - edit_upload: first-turn reshape of a user-uploaded source clip
  */
 export async function runGenerateScene(
   input: GenerateSceneInput
@@ -124,8 +158,15 @@ export async function runGenerateScene(
     return { ok: false, error: error?.message || 'Invalid generate request.' };
   }
 
-  const isEdit = data.mode === 'edit' || Boolean(data.previousInteractionId);
-  const referenceImageUrls = isEdit ? [] : data.referenceImageUrls || [];
+  const isFollowUpEdit =
+    data.mode === 'edit' ||
+    (Boolean(data.previousInteractionId) && data.mode !== 'edit_upload');
+  const isUploadEdit =
+    data.mode === 'edit_upload' ||
+    (Boolean(data.sourceVideoUrl) && !data.previousInteractionId && data.mode !== 'generate');
+
+  const referenceImageUrls =
+    isFollowUpEdit || isUploadEdit ? [] : data.referenceImageUrls || [];
 
   try {
     await spendCredit(data.userId);
@@ -134,10 +175,28 @@ export async function runGenerateScene(
   }
 
   try {
+    let sourceVideoUri: string | null = null;
+    let sourceVideoMimeType: string | null = null;
+
+    // First uploaded-video edit: push Storage clip into Gemini Files API.
+    // Follow-ups use previous_interaction_id only.
+    if (isUploadEdit && data.sourceVideoUrl && !data.previousInteractionId) {
+      const remote = await fetchRemoteVideoBuffer(data.sourceVideoUrl);
+      const uploaded = await uploadVideoToFilesApi({
+        buffer: remote.buffer,
+        mimeType: remote.mimeType,
+        displayName: `scene-${data.sceneId || 'new'}`,
+      });
+      sourceVideoUri = uploaded.uri;
+      sourceVideoMimeType = uploaded.mimeType;
+    }
+
     const result = await generateWithOmni({
       prompt: data.prompt,
       referenceImageUrls,
       previousInteractionId: data.previousInteractionId,
+      sourceVideoUri,
+      sourceVideoMimeType,
       preferUriDelivery: true,
     });
 
@@ -151,7 +210,6 @@ export async function runGenerateScene(
       videoBase64: result.videoBase64,
       videoUri: result.videoUri,
       mimeType: result.mimeType,
-      // Unique object per cut so browsers don't keep an edited reel cached.
       revision: result.interactionId || Date.now().toString(36),
     });
 
@@ -163,6 +221,7 @@ export async function runGenerateScene(
       interactionId: result.interactionId || null,
       videoUrl: videoUrl || null,
       thumbnailUrl: videoUrl || null,
+      sourceVideoUrl: data.sourceVideoUrl || null,
       mimeType: result.mimeType || null,
       status: videoUrl ? 'ready' : 'error',
       updatedAt: FieldValue.serverTimestamp(),
@@ -189,7 +248,8 @@ export async function runGenerateScene(
     await refundCredit(data.userId);
     console.error('[runGenerateScene] failed', {
       mode: data.mode,
-      isEdit,
+      isFollowUpEdit,
+      isUploadEdit,
       message: String(error?.message || error).slice(0, 500),
     });
     return { ok: false, error: humanizeServerError(error, 'omni') };

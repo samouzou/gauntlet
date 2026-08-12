@@ -11,6 +11,10 @@ import type { GenerateSceneResult } from '@/lib/studio/run-generate-scene';
 import { createCheckoutSession } from '@/app/actions/checkout';
 import { uploadCharacterAsset } from '@/lib/studio/upload-character-asset';
 import {
+  SCENE_SOURCE_MAX_BYTES,
+  uploadSceneSource,
+} from '@/lib/studio/upload-scene-source';
+import {
   SAMPLE_CHARACTERS,
   SAMPLE_SCENES,
   getSampleCharacter,
@@ -26,9 +30,20 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, Sparkles, Clapperboard, UserRoundPlus, ImagePlus, X, History, Plus } from 'lucide-react';
+import {
+  Loader2,
+  Sparkles,
+  Clapperboard,
+  UserRoundPlus,
+  ImagePlus,
+  X,
+  History,
+  Plus,
+  Film,
+} from 'lucide-react';
 import { collection, query, where, orderBy } from 'firebase/firestore';
 import type { Character, Product, Scene } from '@/lib/types';
+import { BRAND } from '@/lib/brand';
 import { cn } from '@/lib/utils';
 
 export function StudioWorkspace() {
@@ -49,6 +64,11 @@ export function StudioWorkspace() {
   const [sceneId, setSceneId] = useState<string | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [sourceVideoUrl, setSourceVideoUrl] = useState<string | null>(null);
+  const [isUploadingSource, setIsUploadingSource] = useState(false);
+  const [pendingKind, setPendingKind] = useState<'generate' | 'edit' | 'edit_upload' | null>(
+    null
+  );
   const [isBuying, setIsBuying] = useState<string | null>(null);
 
   // New character form — asset is an optional local file upload
@@ -91,6 +111,7 @@ export function StudioWorkspace() {
     setVideoUrl(scene.videoUrl || null);
     setInteractionId(scene.interactionId || null);
     setPreviewImage(scene.thumbnailUrl || null);
+    setSourceVideoUrl(scene.sourceVideoUrl || null);
     setEditInstruction('');
   }, []);
 
@@ -101,6 +122,7 @@ export function StudioWorkspace() {
     setVideoUrl(null);
     setInteractionId(null);
     setPreviewImage(null);
+    setSourceVideoUrl(null);
     setEditInstruction('');
     setSelectedCharacterIds([]);
     router.replace('/studio');
@@ -180,6 +202,65 @@ export function StudioWorkspace() {
     multiple: false,
   });
 
+  const onSceneSourceDrop = useCallback(
+    (accepted: File[]) => {
+      const file = accepted[0];
+      if (!file) return;
+      if (!user) {
+        setAuthOpen(true);
+        return;
+      }
+
+      setIsUploadingSource(true);
+      void (async () => {
+        try {
+          const uploaded = await uploadSceneSource({
+            app: firebaseApp,
+            userId: user.uid,
+            file,
+          });
+          setSourceVideoUrl(uploaded.url);
+          // Show the source until Arc returns a reshaped reel.
+          if (!videoUrl) setPreviewImage(null);
+          toast({
+            title: 'Clip ready',
+            description: 'Tell Arc what to change, then apply the cut.',
+          });
+        } catch (err: any) {
+          toast({
+            variant: 'destructive',
+            title: 'Couldn’t add that clip',
+            description: err?.message || 'Try a short mp4 or webm under 10 seconds.',
+          });
+        } finally {
+          setIsUploadingSource(false);
+        }
+      })();
+    },
+    [user, firebaseApp, videoUrl, toast]
+  );
+
+  const {
+    getRootProps: getSceneSourceRootProps,
+    getInputProps: getSceneSourceInputProps,
+    isDragActive: isSceneSourceDragActive,
+  } = useDropzone({
+    onDrop: onSceneSourceDrop,
+    accept: {
+      'video/mp4': ['.mp4'],
+      'video/webm': ['.webm'],
+      'video/quicktime': ['.mov'],
+    },
+    maxFiles: 1,
+    maxSize: SCENE_SOURCE_MAX_BYTES,
+    multiple: false,
+    disabled: isPending || isUploadingSource,
+  });
+
+  const clearSourceVideo = useCallback(() => {
+    setSourceVideoUrl(null);
+  }, []);
+
   const requireAuthOrCredits = () => {
     if (!user) {
       setAuthOpen(true);
@@ -196,7 +277,7 @@ export function StudioWorkspace() {
     return true;
   };
 
-  const runGenerate = (mode: 'generate' | 'edit') => {
+  const runGenerate = (mode: 'generate' | 'edit' | 'edit_upload') => {
     if (!requireAuthOrCredits()) return;
 
     const finalPrompt =
@@ -208,27 +289,40 @@ export function StudioWorkspace() {
       toast({
         variant: 'destructive',
         title: 'Tell us a bit more',
-        description: 'A sentence or two about the shot, motion, and mood goes a long way.',
+        description:
+          mode === 'edit_upload'
+            ? 'Describe the change you want — a donkey beside them, heavier rain, a closer push-in…'
+            : 'A sentence or two about the shot, motion, and mood goes a long way.',
+      });
+      return;
+    }
+
+    if (mode === 'edit_upload' && !sourceVideoUrl && !interactionId) {
+      toast({
+        variant: 'destructive',
+        title: 'Add a clip first',
+        description: 'Drop a short clip above, then tell Arc how to reshape it.',
       });
       return;
     }
 
     startTransition(async () => {
+      setPendingKind(mode);
       try {
         // Only user cast stills become generation refs. Sample portraits are
         // display-only (stock faces) — continuity comes from the cast notes.
-        // Edits are instruction-only; Omni keeps prior video state by interaction id.
+        // Edits / upload-edits are instruction-led; Omni keeps prior video state.
         const referenceImageUrls =
-          mode === 'edit'
-            ? []
-            : selectedCharacters
+          mode === 'generate'
+            ? selectedCharacters
                 .filter((c) => !c.isSample)
                 .map((c) => c.imageUrl)
                 .filter(
                   (url): url is string =>
                     typeof url === 'string' &&
                     (url.startsWith('https://') || url.startsWith('http://'))
-                );
+                )
+            : [];
 
         const castBible = selectedCharacters
           .map(
@@ -244,8 +338,10 @@ export function StudioWorkspace() {
             ? `${finalPrompt}\n\nCast / continuity notes:\n${castBible}`
             : finalPrompt;
 
-        // Use the JSON API route — Server Actions consistently die on Omni edits
-        // with RSC "unexpected response" once the payload/time grows.
+        // Follow-up after an upload edit uses previous_interaction_id (mode edit).
+        const resolvedMode =
+          mode === 'edit_upload' && interactionId ? 'edit' : mode;
+
         const response = await fetch('/api/studio/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -255,9 +351,14 @@ export function StudioWorkspace() {
             title: title || undefined,
             characterIds: selectedCharacterIds,
             referenceImageUrls,
-            previousInteractionId: mode === 'edit' ? interactionId : null,
+            previousInteractionId:
+              resolvedMode === 'edit' || (resolvedMode === 'edit_upload' && interactionId)
+                ? interactionId
+                : null,
+            sourceVideoUrl:
+              resolvedMode === 'edit_upload' && !interactionId ? sourceVideoUrl : null,
             sceneId: sceneId?.startsWith('sample-') ? null : sceneId,
-            mode,
+            mode: resolvedMode,
           }),
         });
 
@@ -286,10 +387,13 @@ export function StudioWorkspace() {
         setVideoUrl(result.videoUrl || null);
         router.replace(`/studio?scene=${result.sceneId}`);
         toast({
-          title: mode === 'edit' ? 'Cut ready' : 'Scene ready',
+          title:
+            resolvedMode === 'edit' || resolvedMode === 'edit_upload'
+              ? 'Cut ready'
+              : 'Scene ready',
           description: 'Keep talking to shape what happens next.',
         });
-        if (mode === 'edit') setEditInstruction('');
+        if (resolvedMode === 'edit') setEditInstruction('');
       } catch (err: any) {
         const message = String(err?.message || '');
         toast({
@@ -300,6 +404,8 @@ export function StudioWorkspace() {
               ? 'That took too long. Give it another try in a moment.'
               : message || 'That scene didn’t come through. Try again.',
         });
+      } finally {
+        setPendingKind(null);
       }
     });
   };
@@ -465,15 +571,19 @@ export function StudioWorkspace() {
               Scene stage
             </CardTitle>
             <CardDescription>
-              {selectedCharacters.length
-                ? `With ${selectedCharacters.map((c) => c.name).join(', ')}`
-                : 'Choose who belongs in this scene.'}
+              {sourceVideoUrl && !interactionId
+                ? `Hand ${BRAND.aiName} a clip and say what to change.`
+                : selectedCharacters.length
+                  ? `With ${selectedCharacters.map((c) => c.name).join(', ')}`
+                  : 'Choose who belongs in this scene — or drop in a clip to reshape.'}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="relative aspect-video rounded-xl overflow-hidden border border-border/60 bg-secondary/40">
               {videoUrl ? (
                 <video src={videoUrl} controls className="h-full w-full object-cover" />
+              ) : sourceVideoUrl ? (
+                <video src={sourceVideoUrl} controls className="h-full w-full object-cover" />
               ) : previewImage ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={previewImage} alt="" className="h-full w-full object-cover opacity-90" />
@@ -485,10 +595,62 @@ export function StudioWorkspace() {
               {isPending && (
                 <div className="absolute inset-0 bg-black/55 backdrop-blur-[2px] flex flex-col items-center justify-center gap-2">
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                  <p className="text-sm text-white/90">Creating your scene…</p>
+                  <p className="text-sm text-white/90">
+                    {pendingKind === 'edit_upload' ||
+                    (pendingKind === 'edit' && sourceVideoUrl)
+                      ? `${BRAND.aiName} is reshaping your clip…`
+                      : 'Creating your scene…'}
+                  </p>
                 </div>
               )}
             </div>
+
+            {!interactionId && (
+              <div className="space-y-2">
+                <Label>Source clip (optional)</Label>
+                {sourceVideoUrl ? (
+                  <div className="flex items-center justify-between gap-3 rounded-xl border border-border/70 bg-secondary/20 px-3 py-2">
+                    <div className="flex items-center gap-2 text-sm min-w-0">
+                      <Film className="h-4 w-4 text-primary shrink-0" />
+                      <span className="truncate text-foreground/90">Clip attached</span>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={clearSourceVideo}
+                      disabled={isPending || isUploadingSource}
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                ) : (
+                  <div
+                    {...getSceneSourceRootProps()}
+                    className={cn(
+                      'flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border/80 bg-secondary/20 px-4 py-5 text-center transition-colors',
+                      isSceneSourceDragActive && 'border-primary bg-primary/10',
+                      (isPending || isUploadingSource) && 'pointer-events-none opacity-60'
+                    )}
+                  >
+                    <input {...getSceneSourceInputProps()} />
+                    {isUploadingSource ? (
+                      <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                    ) : (
+                      <Film className="h-5 w-5 text-primary" />
+                    )}
+                    <p className="text-sm text-foreground/90">
+                      {isSceneSourceDragActive
+                        ? 'Drop the clip here'
+                        : 'Drop a short clip to reshape'}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      mp4 / webm · about 10 seconds · under 80MB
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="title">Scene title</Label>
@@ -501,25 +663,61 @@ export function StudioWorkspace() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="prompt">What happens</Label>
+              <Label htmlFor="prompt">
+                {sourceVideoUrl && !interactionId ? 'What should change' : 'What happens'}
+              </Label>
               <Textarea
                 id="prompt"
                 rows={5}
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
-                placeholder="A slow push-in on Mira as neon rain hits the rooftop…"
+                placeholder={
+                  sourceVideoUrl && !interactionId
+                    ? 'Add a donkey that stays beside them…'
+                    : 'A slow push-in on Mira as neon rain hits the rooftop…'
+                }
               />
             </div>
 
-            <Button
-              size="lg"
-              className="w-full"
-              disabled={isPending}
-              onClick={() => runGenerate('generate')}
-            >
-              {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-              Shoot scene
-            </Button>
+            {sourceVideoUrl && !interactionId ? (
+              <>
+                <Button
+                  size="lg"
+                  className="w-full"
+                  disabled={isPending || isUploadingSource}
+                  onClick={() => runGenerate('edit_upload')}
+                >
+                  {isPending && pendingKind === 'edit_upload' ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="mr-2 h-4 w-4" />
+                  )}
+                  Apply cut
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  disabled={isPending || isUploadingSource}
+                  onClick={() => runGenerate('generate')}
+                >
+                  Shoot a new scene instead
+                </Button>
+              </>
+            ) : (
+              <Button
+                size="lg"
+                className="w-full"
+                disabled={isPending}
+                onClick={() => runGenerate('generate')}
+              >
+                {isPending && pendingKind === 'generate' ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Sparkles className="mr-2 h-4 w-4" />
+                )}
+                Shoot scene
+              </Button>
+            )}
 
             {interactionId && (
               <div className="space-y-2 pt-2 border-t border-border/60">
@@ -537,6 +735,9 @@ export function StudioWorkspace() {
                   disabled={isPending}
                   onClick={() => runGenerate('edit')}
                 >
+                  {isPending && pendingKind === 'edit' ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : null}
                   Apply cut
                 </Button>
               </div>
