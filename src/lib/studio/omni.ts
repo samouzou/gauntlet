@@ -16,6 +16,8 @@ const MAX_POLLS = 54; // ~4.5 min after create returns in-progress
 
 type ImageMime = 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif';
 
+export type OmniAspectRatio = '16:9' | '9:16';
+
 export interface OmniGenerateInput {
   prompt: string;
   /** Optional image URLs / local /samples paths used as character refs */
@@ -23,6 +25,8 @@ export interface OmniGenerateInput {
   previousInteractionId?: string | null;
   /** Prefer Files API URIs over inline base64 (important for edits). */
   preferUriDelivery?: boolean;
+  /** Landscape (16:9) or portrait (9:16). Defaults to 16:9. */
+  aspectRatio?: OmniAspectRatio | null;
   /**
    * Active Gemini Files API URI for an uploaded source clip.
    * Used only when there is no previousInteractionId (first uploaded-video edit).
@@ -393,8 +397,9 @@ function buildMinimalBody(input: {
   contentParts: InteractionInputPart[];
   previousInteractionId?: string | null;
   preferUriDelivery?: boolean;
-  aspectRatio?: '16:9' | '9:16';
+  aspectRatio?: OmniAspectRatio | null;
 }) {
+  const aspectRatio: OmniAspectRatio = input.aspectRatio === '9:16' ? '9:16' : '16:9';
   const body: Record<string, unknown> = {
     model: OMNI_MODEL,
     input:
@@ -410,13 +415,12 @@ function buildMinimalBody(input: {
     body.previous_interaction_id = input.previousInteractionId;
   }
 
-  if (input.preferUriDelivery || (input.aspectRatio && input.aspectRatio !== '16:9')) {
+  // Always send response_format when we need URI delivery and/or a non-default frame.
+  if (input.preferUriDelivery || aspectRatio !== '16:9') {
     body.response_format = {
       type: 'video',
+      aspect_ratio: aspectRatio,
       ...(input.preferUriDelivery ? { delivery: 'uri' } : {}),
-      ...(input.aspectRatio && input.aspectRatio !== '16:9'
-        ? { aspect_ratio: input.aspectRatio }
-        : {}),
     };
   }
 
@@ -467,11 +471,14 @@ export async function generateWithOmni(input: OmniGenerateInput): Promise<OmniGe
     ];
   }
 
+  const aspectRatio: OmniAspectRatio = input.aspectRatio === '9:16' ? '9:16' : '16:9';
+
   const primaryBody = buildMinimalBody({
     promptText,
     contentParts,
     previousInteractionId: input.previousInteractionId,
     preferUriDelivery,
+    aspectRatio,
   });
 
   console.info('[omni] create interaction', {
@@ -481,6 +488,7 @@ export async function generateWithOmni(input: OmniGenerateInput): Promise<OmniGe
     hasPrevious: Boolean(input.previousInteractionId),
     hasSourceVideo: Boolean(input.sourceVideoUri),
     preferUriDelivery,
+    aspectRatio,
     bodyKeys: Object.keys(primaryBody),
   });
 
@@ -514,6 +522,7 @@ export async function generateWithOmni(input: OmniGenerateInput): Promise<OmniGe
               { type: 'text', text: promptText },
             ],
             preferUriDelivery,
+            aspectRatio,
           })
         );
       } catch (retryError) {
@@ -536,6 +545,7 @@ export async function generateWithOmni(input: OmniGenerateInput): Promise<OmniGe
             contentParts,
             previousInteractionId: input.previousInteractionId,
             preferUriDelivery: false,
+            aspectRatio,
           })
         );
       } else {
@@ -558,6 +568,7 @@ export async function generateWithOmni(input: OmniGenerateInput): Promise<OmniGe
             promptText: input.prompt,
             contentParts: [{ type: 'text', text: input.prompt }],
             preferUriDelivery,
+            aspectRatio,
           })
         );
       }

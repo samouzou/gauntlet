@@ -18,6 +18,8 @@ export interface Character {
   userId?: string | null;
 }
 
+export type VideoAspectRatio = '16:9' | '9:16';
+
 export interface Scene {
   id: string;
   title: string;
@@ -26,6 +28,8 @@ export interface Scene {
   videoUrl?: string | null;
   /** Original uploaded clip the user asked Arc to reshape (if any). */
   sourceVideoUrl?: string | null;
+  /** Output frame: landscape 16:9 or portrait 9:16. */
+  aspectRatio?: VideoAspectRatio | null;
   characterIds: string[];
   interactionId?: string | null;
   isSample?: boolean;

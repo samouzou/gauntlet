@@ -35,6 +35,7 @@ export const generateSceneSchema = z
     previousInteractionId: z.string().optional().nullable(),
     sceneId: z.string().optional().nullable(),
     sourceVideoUrl: httpsUrlSchema.optional().nullable(),
+    aspectRatio: z.enum(['16:9', '9:16']).optional().default('16:9'),
     mode: z.enum(['generate', 'edit', 'edit_upload']).default('generate'),
   })
   .superRefine((data, ctx) => {
@@ -191,12 +192,15 @@ export async function runGenerateScene(
       sourceVideoMimeType = uploaded.mimeType;
     }
 
+    const aspectRatio = data.aspectRatio === '9:16' ? '9:16' : '16:9';
+
     const result = await generateWithOmni({
       prompt: data.prompt,
       referenceImageUrls,
       previousInteractionId: data.previousInteractionId,
       sourceVideoUri,
       sourceVideoMimeType,
+      aspectRatio,
       preferUriDelivery: true,
     });
 
@@ -222,6 +226,7 @@ export async function runGenerateScene(
       videoUrl: videoUrl || null,
       thumbnailUrl: videoUrl || null,
       sourceVideoUrl: data.sourceVideoUrl || null,
+      aspectRatio,
       mimeType: result.mimeType || null,
       status: videoUrl ? 'ready' : 'error',
       updatedAt: FieldValue.serverTimestamp(),

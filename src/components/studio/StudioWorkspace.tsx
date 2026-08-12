@@ -40,9 +40,11 @@ import {
   History,
   Plus,
   Film,
+  RectangleHorizontal,
+  RectangleVertical,
 } from 'lucide-react';
 import { collection, query, where, orderBy } from 'firebase/firestore';
-import type { Character, Product, Scene } from '@/lib/types';
+import type { Character, Product, Scene, VideoAspectRatio } from '@/lib/types';
 import { BRAND } from '@/lib/brand';
 import { cn } from '@/lib/utils';
 
@@ -65,6 +67,7 @@ export function StudioWorkspace() {
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [sourceVideoUrl, setSourceVideoUrl] = useState<string | null>(null);
+  const [aspectRatio, setAspectRatio] = useState<VideoAspectRatio>('16:9');
   const [isUploadingSource, setIsUploadingSource] = useState(false);
   const [pendingKind, setPendingKind] = useState<'generate' | 'edit' | 'edit_upload' | null>(
     null
@@ -112,6 +115,7 @@ export function StudioWorkspace() {
     setInteractionId(scene.interactionId || null);
     setPreviewImage(scene.thumbnailUrl || null);
     setSourceVideoUrl(scene.sourceVideoUrl || null);
+    setAspectRatio(scene.aspectRatio === '9:16' ? '9:16' : '16:9');
     setEditInstruction('');
   }, []);
 
@@ -123,6 +127,7 @@ export function StudioWorkspace() {
     setInteractionId(null);
     setPreviewImage(null);
     setSourceVideoUrl(null);
+    setAspectRatio('16:9');
     setEditInstruction('');
     setSelectedCharacterIds([]);
     router.replace('/studio');
@@ -357,6 +362,7 @@ export function StudioWorkspace() {
                 : null,
             sourceVideoUrl:
               resolvedMode === 'edit_upload' && !interactionId ? sourceVideoUrl : null,
+            aspectRatio,
             sceneId: sceneId?.startsWith('sample-') ? null : sceneId,
             mode: resolvedMode,
           }),
@@ -579,16 +585,31 @@ export function StudioWorkspace() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="relative aspect-video rounded-xl overflow-hidden border border-border/60 bg-secondary/40">
+            <div
+              className={cn(
+                'relative mx-auto w-full overflow-hidden rounded-xl border border-border/60 bg-secondary/40',
+                aspectRatio === '9:16'
+                  ? 'aspect-[9/16] max-w-sm'
+                  : 'aspect-video'
+              )}
+            >
               {videoUrl ? (
-                <video src={videoUrl} controls className="h-full w-full object-cover" />
+                <video src={videoUrl} controls className="h-full w-full object-contain bg-black" />
               ) : sourceVideoUrl ? (
-                <video src={sourceVideoUrl} controls className="h-full w-full object-cover" />
+                <video
+                  src={sourceVideoUrl}
+                  controls
+                  className="h-full w-full object-contain bg-black"
+                />
               ) : previewImage ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={previewImage} alt="" className="h-full w-full object-cover opacity-90" />
+                <img
+                  src={previewImage}
+                  alt=""
+                  className="h-full w-full object-cover opacity-90"
+                />
               ) : (
-                <div className="h-full w-full flex items-center justify-center text-muted-foreground text-sm">
+                <div className="h-full w-full flex items-center justify-center text-muted-foreground text-sm px-4 text-center">
                   Your scene will appear here
                 </div>
               )}
@@ -603,6 +624,37 @@ export function StudioWorkspace() {
                   </p>
                 </div>
               )}
+            </div>
+
+            <div className="space-y-2">
+              <Label>Format</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  type="button"
+                  variant={aspectRatio === '16:9' ? 'default' : 'outline'}
+                  className="justify-center"
+                  disabled={isPending}
+                  onClick={() => setAspectRatio('16:9')}
+                >
+                  <RectangleHorizontal className="mr-2 h-4 w-4" />
+                  Landscape
+                </Button>
+                <Button
+                  type="button"
+                  variant={aspectRatio === '9:16' ? 'default' : 'outline'}
+                  className="justify-center"
+                  disabled={isPending}
+                  onClick={() => setAspectRatio('9:16')}
+                >
+                  <RectangleVertical className="mr-2 h-4 w-4" />
+                  Portrait
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {aspectRatio === '9:16'
+                  ? 'Vertical 9:16 — great for stories and shorts.'
+                  : 'Horizontal 16:9 — classic widescreen.'}
+              </p>
             </div>
 
             {!interactionId && (
