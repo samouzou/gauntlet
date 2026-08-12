@@ -10,9 +10,11 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "firebase:deploy:rules": "firebase deploy --only firestore:rules,storage --project studio-7012397261-f7ef4 --non-interactive",
+    "firebase:deploy:rules": "firebase deploy --only firestore:rules,firestore:indexes,storage --project studio-7012397261-f7ef4 --non-interactive",
     "firebase:deploy:storage": "firebase deploy --only storage --project studio-7012397261-f7ef4 --non-interactive",
-    "firebase:deploy:firestore": "firebase deploy --only firestore:rules --project studio-7012397261-f7ef4 --non-interactive"
+    "firebase:deploy:firestore": "firebase deploy --only firestore:rules,firestore:indexes --project studio-7012397261-f7ef4 --non-interactive",
+    "firebase:deploy:app": "firebase deploy --only apphosting --project studio-7012397261-f7ef4 --non-interactive",
+    "firebase:deploy": "firebase deploy --only firestore:rules,firestore:indexes,storage,apphosting --project studio-7012397261-f7ef4 --non-interactive"
   },
   "dependencies": {
     "@genkit-ai/google-genai": "1.28.0",
