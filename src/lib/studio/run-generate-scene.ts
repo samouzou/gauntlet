@@ -2,7 +2,8 @@ import { adminDb } from '@/firebase/admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { generateWithOmni } from '@/lib/studio/omni';
 import { fetchRemoteVideoBuffer, uploadVideoToFilesApi } from '@/lib/studio/files-api';
-import { refundCredit, spendCredit } from '@/lib/studio/credits';
+import { refundCredits, spendCredits } from '@/lib/studio/credits';
+import { creditCost } from '@/lib/studio/pricing';
 import { persistGeneratedVideo } from '@/lib/studio/upload-generated-video';
 import { z } from 'zod';
 
@@ -169,8 +170,18 @@ export async function runGenerateScene(
   const referenceImageUrls =
     isFollowUpEdit || isUploadEdit ? [] : data.referenceImageUrls || [];
 
+  const pricedMode =
+    isUploadEdit || data.mode === 'edit_upload'
+      ? 'edit_upload'
+      : isFollowUpEdit || data.mode === 'edit'
+        ? 'video_edit'
+        : referenceImageUrls.length > 0
+          ? 'image_to_video'
+          : 'text_to_video';
+  const cost = creditCost(pricedMode);
+
   try {
-    await spendCredit(data.userId);
+    await spendCredits(data.userId, cost);
   } catch (error) {
     return { ok: false, error: humanizeServerError(error, 'credits') };
   }
@@ -236,10 +247,10 @@ export async function runGenerateScene(
     await sceneRef.set(payload, { merge: true });
 
     if (!videoUrl) {
-      await refundCredit(data.userId);
+      await refundCredits(data.userId, cost);
       return {
         ok: false,
-        error: 'The scene didn’t come back playable. Your credit was returned.',
+        error: 'The scene didn’t come back playable. Your credits were returned.',
       };
     }
 
@@ -250,7 +261,7 @@ export async function runGenerateScene(
       videoUrl,
     };
   } catch (error: any) {
-    await refundCredit(data.userId);
+    await refundCredits(data.userId, cost);
     console.error('[runGenerateScene] failed', {
       mode: data.mode,
       isFollowUpEdit,

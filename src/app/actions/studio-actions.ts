@@ -2,9 +2,10 @@
 
 import { adminDb } from '@/firebase/admin';
 import { FieldValue } from 'firebase-admin/firestore';
-import { refundCredit, spendCredit } from '@/lib/studio/credits';
+import { refundCredits, spendCredits } from '@/lib/studio/credits';
 import { generateCharacterImage } from '@/lib/studio/generate-character-image';
 import { persistCharacterImage } from '@/lib/studio/persist-character-image';
+import { creditCost } from '@/lib/studio/pricing';
 import {
   humanizeServerError,
   runGenerateScene,
@@ -67,7 +68,7 @@ export type GenerateCharacterResult =
 
 /**
  * Generate a character portrait, store it, and add to cast.
- * Costs 1 credit (same as a scene generate).
+ * Costs 1 credit (image tier).
  */
 export async function generateCharacter(input: {
   userId: string;
@@ -88,8 +89,10 @@ export async function generateCharacter(input: {
     return { ok: false, error: error?.message || 'Invalid character details.' };
   }
 
+  const cost = creditCost('character');
+
   try {
-    await spendCredit(data.userId);
+    await spendCredits(data.userId, cost);
   } catch (error) {
     return { ok: false, error: humanizeServerError(error, 'credits') };
   }
@@ -130,7 +133,7 @@ export async function generateCharacter(input: {
       style: data.style,
     };
   } catch (error: any) {
-    await refundCredit(data.userId);
+    await refundCredits(data.userId, cost);
     console.error('[generateCharacter] failed', error);
     return {
       ok: false,

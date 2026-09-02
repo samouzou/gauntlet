@@ -30,6 +30,12 @@ service firebase.storage {
       allow write: if isOwner(userId) && isImage();
     }
 
+    // Generated / uploaded studio stills (text→image, restyle sources)
+    match /users/{userId}/images/{allPaths=**} {
+      allow read: if isOwner(userId);
+      allow write: if isOwner(userId) && isImage();
+    }
+
     // Generated / uploaded scene media
     match /users/{userId}/scenes/{allPaths=**} {
       allow read: if isOwner(userId);

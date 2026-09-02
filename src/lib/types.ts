@@ -40,4 +40,29 @@ export interface Scene {
   updatedAt?: unknown;
 }
 
+export type ImageAspectRatio = '1:1' | '3:4' | '4:3' | '16:9' | '9:16';
+
+export interface StudioImage {
+  id: string;
+  title: string;
+  prompt: string;
+  imageUrl?: string | null;
+  sourceImageUrl?: string | null;
+  aspectRatio?: ImageAspectRatio | null;
+  mode?: 'text_to_image' | 'image_to_image' | null;
+  userId?: string | null;
+  status?: 'draft' | 'generating' | 'ready' | 'error';
+  createdAt?: unknown;
+  updatedAt?: unknown;
+}
+
+/** Left-rail studio panels. */
+export type StudioPanel =
+  | 'video'
+  | 'image'
+  | 'restyle'
+  | 'animate'
+  | 'cast'
+  | 'reels';
+
 export type StudioMode = 'explore' | 'create';

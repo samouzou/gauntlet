@@ -27,7 +27,7 @@ service cloud.firestore {
       allow create: if isOwner(userId)
         && request.resource.data.credits is number
         && request.resource.data.credits >= 0
-        && request.resource.data.credits <= 5;
+        && request.resource.data.credits <= 15;
 
       // Clients may update profile fields but never mutate credits / counters.
       allow update: if isOwner(userId)
@@ -56,6 +56,14 @@ service cloud.firestore {
 
     match /scenes/{sceneId} {
       // Owners can browse their reels. Writes go through Admin SDK / server actions.
+      allow get, list: if isSignedIn()
+        && resource.data.userId == request.auth.uid;
+
+      allow create, update, delete: if false;
+    }
+
+    match /images/{imageId} {
+      // Text→image / restyle outputs. Writes go through Admin SDK.
       allow get, list: if isSignedIn()
         && resource.data.userId == request.auth.uid;
 
