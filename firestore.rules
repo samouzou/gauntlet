@@ -8,22 +8,66 @@ service cloud.firestore {
     }
 
     function isOwner(userId) {
-      return request.auth.uid == userId;
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function creditsUnchanged() {
+      return request.resource.data.credits == resource.data.credits;
+    }
+
+    function generationsUnchanged() {
+      return !('total_generations' in resource.data)
+        || request.resource.data.total_generations == resource.data.total_generations;
     }
 
     match /users/{userId} {
       allow get: if isOwner(userId);
-      allow create: if isOwner(userId);
-      // Clients cannot change credits (server/admin only).
+      // Profile creates primarily go through Admin (ensureUserProfile).
+      // Keep a narrow client create path as a fallback (starter credits only).
+      allow create: if isOwner(userId)
+        && request.resource.data.credits is number
+        && request.resource.data.credits >= 0
+        && request.resource.data.credits <= 15;
+
+      // Clients may update profile fields but never mutate credits / counters.
       allow update: if isOwner(userId)
-        && request.resource.data.credits == resource.data.credits;
+        && creditsUnchanged()
+        && generationsUnchanged();
+
+      allow delete: if false;
     }
 
-    match /jobs/{jobId} {
-      // Public board: anyone can read active listings.
-      allow read: if true;
-      // Creates/updates go through Admin SDK server actions.
-      allow write: if false;
+    match /characters/{characterId} {
+      // Owners can read their cast; samples live in app code, not Firestore.
+      allow get, list: if isSignedIn()
+        && resource.data.userId == request.auth.uid;
+
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.keys().hasAll(['userId', 'name', 'description', 'imageUrl']);
+
+      allow update: if isSignedIn()
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.userId == resource.data.userId;
+
+      allow delete: if isSignedIn()
+        && resource.data.userId == request.auth.uid;
+    }
+
+    match /scenes/{sceneId} {
+      // Owners can browse their reels. Writes go through Admin SDK / server actions.
+      allow get, list: if isSignedIn()
+        && resource.data.userId == request.auth.uid;
+
+      allow create, update, delete: if false;
+    }
+
+    match /images/{imageId} {
+      // Text→image / restyle outputs. Writes go through Admin SDK.
+      allow get, list: if isSignedIn()
+        && resource.data.userId == request.auth.uid;
+
+      allow create, update, delete: if false;
     }
 
     match /products/{productId} {

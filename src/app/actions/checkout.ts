@@ -36,8 +36,8 @@ export async function createCheckoutSession(props: CreateCheckoutSessionProps) {
         ],
         allow_promotion_codes: true,
         mode: 'payment',
-        success_url: `${appUrl}/employer?checkout=success`,
-        cancel_url: `${appUrl}/employer?checkout=cancel`,
+        success_url: `${appUrl}/studio?checkout=success`,
+        cancel_url: `${appUrl}/studio?checkout=cancel`,
         metadata: {
             userId: userId,
         },

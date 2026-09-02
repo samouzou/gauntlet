@@ -4,8 +4,16 @@ import * as React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+import { useRouter } from 'next/navigation';
 import { useFirebase } from '@/firebase';
-import { createUserWithEmailAndPassword, sendEmailVerification, signInWithEmailAndPassword } from 'firebase/auth';
+import {
+  createUserWithEmailAndPassword,
+  sendEmailVerification,
+  signInWithEmailAndPassword,
+  type User,
+} from 'firebase/auth';
+import { ensureUserProfile } from '@/app/actions/user-profile';
+import { markVerificationEmailPending } from '@/lib/auth/verification';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import {
@@ -26,9 +34,15 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
+async function sendVerificationSafely(user: User) {
+  if (user.emailVerified) return;
+  await sendEmailVerification(user);
+}
+
 export function EmailPasswordForm() {
   const { auth } = useFirebase();
   const { toast } = useToast();
+  const router = useRouter();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [mode, setMode] = React.useState<'signIn' | 'signUp'>('signIn');
 
@@ -44,40 +58,93 @@ export function EmailPasswordForm() {
     setIsSubmitting(true);
     try {
       if (mode === 'signIn') {
-        await signInWithEmailAndPassword(auth, values.email, values.password);
-      } else {
-        const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
-        if (userCredential.user) {
-          await sendEmailVerification(userCredential.user);
-          toast({
-            title: "Verification Email Sent",
-            description: "Please check your inbox to finish signing up.",
-          });
+        const credential = await signInWithEmailAndPassword(auth, values.email, values.password);
+        // Profile write in background — don't block navigation.
+        void ensureUserProfile({
+          userId: credential.user.uid,
+          email: credential.user.email ?? values.email,
+          displayName: credential.user.displayName,
+          photoURL: credential.user.photoURL,
+        }).catch((err) => console.error('ensureUserProfile failed', err));
+
+        if (!credential.user.emailVerified) {
+          markVerificationEmailPending(values.email);
+          router.replace('/verify-email');
+          return;
         }
+        router.replace('/studio');
+        return;
       }
-      // The onAuthStateChanged listener in AuthProvider will handle the redirect on success.
+
+      // --- Sign up ---
+      const userCredential = await createUserWithEmailAndPassword(
+        auth,
+        values.email,
+        values.password
+      );
+      const user = userCredential.user;
+
+      // 1) Send verification FIRST — before profile writes / navigation races.
+      //    AuthProvider + /login used to redirect as soon as Auth user existed,
+      //    which interrupted this step; resend on /verify-email then "worked".
+      try {
+        await sendVerificationSafely(user);
+        markVerificationEmailPending(values.email);
+      } catch (verifyError: any) {
+        console.error('sendEmailVerification failed on signup', verifyError);
+        // Still mark pending so /verify-email can retry automatically.
+        markVerificationEmailPending(values.email);
+        toast({
+          variant: 'destructive',
+          title: 'Couldn’t send verification email',
+          description:
+            verifyError?.code === 'auth/too-many-requests'
+              ? 'Too many attempts. Wait a minute, then use Resend on the next screen.'
+              : 'Account created — use Resend on the next screen if you don’t see the email.',
+        });
+      }
+
+      // 2) Firestore profile (Admin) — must not block the verification email.
+      try {
+        await ensureUserProfile({
+          userId: user.uid,
+          email: user.email ?? values.email,
+          displayName: user.displayName,
+          photoURL: user.photoURL,
+        });
+      } catch (profileError) {
+        console.error('ensureUserProfile failed on signup', profileError);
+        // AuthProvider will retry; spendCredit can also seed.
+      }
+
+      toast({
+        title: 'Check your inbox',
+        description: 'We sent a verification link. Confirm your email to finish signing up.',
+      });
+      router.replace('/verify-email');
     } catch (error: any) {
-      // Firebase provides specific error codes.
-      let errorMessage = "An unexpected error occurred. Please try again.";
+      let errorMessage = 'An unexpected error occurred. Please try again.';
       switch (error.code) {
-        case "auth/user-not-found":
-        case "auth/wrong-password":
-          errorMessage = "Invalid email or password.";
+        case 'auth/user-not-found':
+        case 'auth/wrong-password':
+        case 'auth/invalid-credential':
+          errorMessage = 'Invalid email or password.';
           break;
-        case "auth/email-already-in-use":
-          errorMessage = "An account with this email already exists.";
+        case 'auth/email-already-in-use':
+          errorMessage = 'An account with this email already exists. Sign in instead.';
           break;
-        case "auth/weak-password":
-          errorMessage = "The password is too weak. Please use at least 6 characters.";
+        case 'auth/weak-password':
+          errorMessage = 'The password is too weak. Please use at least 6 characters.';
           break;
-        case "auth/invalid-email":
-            errorMessage = "Please enter a valid email address.";
-            break;
+        case 'auth/invalid-email':
+          errorMessage = 'Please enter a valid email address.';
+          break;
         default:
-          console.error("Authentication Error:", error);
+          console.error('Authentication Error:', error);
+          if (error?.message) errorMessage = error.message;
           break;
       }
-      
+
       toast({
         variant: 'destructive',
         title: 'Authentication Failed',
@@ -132,7 +199,7 @@ export function EmailPasswordForm() {
       <div className="mt-4 text-center text-sm">
         {mode === 'signIn' ? (
           <>
-            Don't have an account?{' '}
+            Don&apos;t have an account?{' '}
             <Button variant="link" className="p-0 h-auto" onClick={toggleMode}>
               Sign up
             </Button>

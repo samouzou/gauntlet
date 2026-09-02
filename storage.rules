@@ -1,0 +1,51 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isImage() {
+      return request.resource != null
+        && request.resource.contentType.matches('image/.*')
+        && request.resource.size < 10 * 1024 * 1024;
+    }
+
+    function isVideo() {
+      return request.resource != null
+        && request.resource.contentType.matches('video/.*')
+        && request.resource.size < 200 * 1024 * 1024;
+    }
+
+    // Character reference stills (uploaded assets used as Omni image refs)
+    match /users/{userId}/characters/{allPaths=**} {
+      // Owner reads via console/app; download URLs with tokens also work for server Omni fetch.
+      allow read: if isOwner(userId);
+      allow write: if isOwner(userId) && isImage();
+    }
+
+    // Generated / uploaded studio stills (text→image, restyle sources)
+    match /users/{userId}/images/{allPaths=**} {
+      allow read: if isOwner(userId);
+      allow write: if isOwner(userId) && isImage();
+    }
+
+    // Generated / uploaded scene media
+    match /users/{userId}/scenes/{allPaths=**} {
+      allow read: if isOwner(userId);
+      allow write: if isOwner(userId) && (isImage() || isVideo());
+    }
+
+    // User-uploaded source clips for Arc reshape (edit_upload)
+    match /users/{userId}/scene-sources/{allPaths=**} {
+      allow read: if isOwner(userId);
+      allow write: if isOwner(userId) && isVideo();
+    }
+  }
+}

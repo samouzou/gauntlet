@@ -54,14 +54,6 @@ export default {
           DEFAULT: 'hsl(var(--card))',
           foreground: 'hsl(var(--card-foreground))',
         },
-        midnight: {
-          DEFAULT: '#070B14',
-          soft: '#0E1422',
-        },
-        signal: {
-          DEFAULT: '#2EC4B6',
-          soft: '#7DDBD1',
-        },
       },
       borderRadius: {
         lg: 'var(--radius)',
@@ -78,19 +70,24 @@ export default {
           to: { height: '0' },
         },
         'fade-up': {
-          from: { opacity: '0', transform: 'translateY(12px)' },
+          from: { opacity: '0', transform: 'translateY(14px)' },
           to: { opacity: '1', transform: 'translateY(0)' },
         },
-        'pulse-soft': {
-          '0%, 100%': { opacity: '0.45' },
+        'reel-spin': {
+          from: { transform: 'rotate(0deg)' },
+          to: { transform: 'rotate(360deg)' },
+        },
+        'soft-pulse': {
+          '0%, 100%': { opacity: '0.4' },
           '50%': { opacity: '0.85' },
         },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
         'accordion-up': 'accordion-up 0.2s ease-out',
-        'fade-up': 'fade-up 0.6s ease-out both',
-        'pulse-soft': 'pulse-soft 3s ease-in-out infinite',
+        'fade-up': 'fade-up 0.55s ease-out both',
+        'reel-spin': 'reel-spin 12s linear infinite',
+        'soft-pulse': 'soft-pulse 3.5s ease-in-out infinite',
       },
     },
   },

@@ -5,6 +5,15 @@ runConfig:
   # Increase this value if you'd like to automatically spin up
   # more instances in response to increased traffic.
   maxInstances: 1
-  # Set a 2-minute timeout for server-side rendering and actions,
-  # to allow ample time for the AI video analysis to complete.
-  timeoutSeconds: 120
+  # Omni video generation/edits can take longer than the default.
+  timeoutSeconds: 300
+  # Video base64/URI handling needs more than the 512MiB default.
+  memoryMiB: 2048
+  cpu: 1
+
+# Bind secrets created with:
+#   firebase apphosting:secrets:set GEMINI_API_KEY
+# Without this binding, server actions will not see GEMINI_API_KEY at runtime.
+env:
+  - variable: GEMINI_API_KEY
+    secret: GEMINI_API_KEY
