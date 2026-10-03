@@ -10,7 +10,7 @@ export function useUserCredits() {
         return doc(firestore, 'users', user.uid);
     }, [user, firestore]);
 
-    const { data: userData, isLoading } = useDoc<{ credits: number }>(userDocRef);
+    const { data: userData, isLoading } = useDoc<{ credits: number; unlimited?: boolean }>(userDocRef);
 
-    return { credits: userData?.credits, isLoading };
+    return { credits: userData?.credits, unlimited: userData?.unlimited === true, isLoading };
 }

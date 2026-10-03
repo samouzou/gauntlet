@@ -39,7 +39,7 @@ async function sendVerificationSafely(user: User) {
   await sendEmailVerification(user);
 }
 
-export function EmailPasswordForm() {
+export function EmailPasswordForm({ redirectTo = '/studio' }: { redirectTo?: string | null } = {}) {
   const { auth } = useFirebase();
   const { toast } = useToast();
   const router = useRouter();
@@ -72,7 +72,7 @@ export function EmailPasswordForm() {
           router.replace('/verify-email');
           return;
         }
-        router.replace('/studio');
+        if (redirectTo) router.replace(redirectTo);
         return;
       }
 

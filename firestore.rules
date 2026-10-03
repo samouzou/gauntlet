@@ -20,6 +20,16 @@ service cloud.firestore {
         || request.resource.data.total_generations == resource.data.total_generations;
     }
 
+    function planFieldsUnchanged() {
+      return !request.resource.data.diff(resource.data).affectedKeys()
+        .hasAny(['plan', 'unlimited', 'appsumoCode', 'planActivatedAt']);
+    }
+
+    function noPlanFields() {
+      return !request.resource.data.keys()
+        .hasAny(['plan', 'unlimited', 'appsumoCode', 'planActivatedAt']);
+    }
+
     match /users/{userId} {
       allow get: if isOwner(userId);
       // Profile creates primarily go through Admin (ensureUserProfile).
@@ -27,12 +37,14 @@ service cloud.firestore {
       allow create: if isOwner(userId)
         && request.resource.data.credits is number
         && request.resource.data.credits >= 0
-        && request.resource.data.credits <= 15;
+        && request.resource.data.credits <= 15
+        && noPlanFields();
 
-      // Clients may update profile fields but never mutate credits / counters.
+      // Clients may update profile fields but never mutate credits / counters / plan.
       allow update: if isOwner(userId)
         && creditsUnchanged()
-        && generationsUnchanged();
+        && generationsUnchanged()
+        && planFieldsUnchanged();
 
       allow delete: if false;
     }
@@ -68,6 +80,10 @@ service cloud.firestore {
         && resource.data.userId == request.auth.uid;
 
       allow create, update, delete: if false;
+    }
+
+    match /appsumo_redemptions/{code} {
+      allow read, write: if false;
     }
 
     match /products/{productId} {

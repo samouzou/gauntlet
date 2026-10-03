@@ -10,6 +10,7 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
+    "appsumo:codes": "tsx --env-file=.env.local scripts/generate-appsumo-codes.ts",
     "firebase:deploy:rules": "firebase deploy --only firestore:rules,firestore:indexes,storage --project studio-7012397261-f7ef4 --non-interactive",
     "firebase:deploy:storage": "firebase deploy --only storage --project studio-7012397261-f7ef4 --non-interactive",
     "firebase:deploy:firestore": "firebase deploy --only firestore:rules,firestore:indexes --project studio-7012397261-f7ef4 --non-interactive",

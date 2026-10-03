@@ -32,6 +32,18 @@ export async function spendCredits(userId: string, amount: number): Promise<void
       }
 
       const data = snap.data() || {};
+      if (data.unlimited === true) {
+        tx.set(
+          userRef,
+          {
+            total_generations: FieldValue.increment(1),
+            updatedAt: FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+        return;
+      }
+
       const credits = Number(data.credits ?? 0);
       if (!Number.isFinite(credits) || credits < cost) {
         throw new Error('You’re out of credits. Grab a pack to keep creating.');
@@ -74,6 +86,17 @@ export async function refundCredits(userId: string, amount: number): Promise<voi
   const cost = Math.max(1, Math.floor(amount));
   try {
     const userRef = adminDb.collection('users').doc(userId);
+    const snap = await userRef.get();
+    if (snap.data()?.unlimited === true) {
+      await userRef.set(
+        {
+          total_generations: FieldValue.increment(-1),
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+      return;
+    }
     await userRef.set(
       {
         credits: FieldValue.increment(cost),

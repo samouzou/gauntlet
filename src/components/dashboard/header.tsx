@@ -20,7 +20,7 @@ import { Sparkles } from 'lucide-react';
 
 export function Header() {
   const { auth, user } = useFirebase();
-  const { credits } = useUserCredits();
+  const { credits, unlimited } = useUserCredits();
   const router = useRouter();
 
   const handleSignOut = () => {
@@ -55,7 +55,7 @@ export function Header() {
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 text-sm border border-border/80 bg-card/50 px-3 py-1.5 rounded-md">
             <Sparkles className="w-4 h-4 text-primary" />
-            <span>{credits ?? 0} credits</span>
+            <span>{unlimited ? 'Unlimited' : `${credits ?? 0} credits`}</span>
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

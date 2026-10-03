@@ -67,7 +67,7 @@ export function StudioWorkspace() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { user, firestore, firebaseApp } = useFirebase();
-  const { credits, isLoading: creditsLoading } = useUserCredits();
+  const { credits, unlimited, isLoading: creditsLoading } = useUserCredits();
   const { toast } = useToast();
   const [isPending, startTransition] = useTransition();
 
@@ -299,7 +299,7 @@ export function StudioWorkspace() {
       setAuthOpen(true);
       return false;
     }
-    if ((credits ?? 0) < needed) {
+    if (!unlimited && (credits ?? 0) < needed) {
       toast({
         variant: 'destructive',
         title: 'You’re out of credits',
@@ -798,7 +798,7 @@ export function StudioWorkspace() {
   };
 
   const creditsPackCard =
-    user && (credits ?? 0) < CREDIT_COSTS.text_to_video ? (
+    user && !unlimited && (credits ?? 0) < CREDIT_COSTS.text_to_video ? (
       <Card className="border-primary/30 bg-primary/5">
         <CardHeader className="pb-2">
           <CardTitle className="font-display text-lg">Keep creating</CardTitle>
@@ -1049,7 +1049,9 @@ export function StudioWorkspace() {
             {user
               ? creditsLoading
                 ? '…'
-                : `${credits ?? 0} credits`
+                : unlimited
+                  ? 'Unlimited'
+                  : `${credits ?? 0} credits`
               : 'Looking around'}
           </div>
         </div>

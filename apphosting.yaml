@@ -17,3 +17,6 @@ runConfig:
 env:
   - variable: GEMINI_API_KEY
     secret: GEMINI_API_KEY
+  # AppSumo code signing key: firebase apphosting:secrets:set APPSUMO_CODE_SECRET
+  - variable: APPSUMO_CODE_SECRET
+    secret: APPSUMO_CODE_SECRET
