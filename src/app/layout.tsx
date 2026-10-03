@@ -86,6 +86,9 @@ export default function RootLayout({
                     {BRAND.name} — make the reel continue.
                   </p>
                   <p>A studio for characters, scenes, and the next cut.</p>
+                  <p className="text-xs text-muted-foreground/70">
+                    © {new Date().getFullYear()} {BRAND.name} by Verza Technologies, Inc.
+                  </p>
                 </div>
               </footer>
             </div>
