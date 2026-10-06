@@ -46,6 +46,7 @@ import {
   RectangleVertical,
   Palette,
   Play,
+  Download,
 } from 'lucide-react';
 import { collection, query, where, orderBy } from 'firebase/firestore';
 import type {
@@ -62,6 +63,10 @@ import { CREDIT_COSTS, creditLabel } from '@/lib/studio/pricing';
 import { uploadStudioImage } from '@/lib/studio/upload-studio-image';
 import { BRAND } from '@/lib/brand';
 import { cn } from '@/lib/utils';
+
+function downloadHref(url: string, filename: string) {
+  return `/api/download?${new URLSearchParams({ url, filename })}`;
+}
 
 export function StudioWorkspace() {
   const searchParams = useSearchParams();
@@ -1121,6 +1126,15 @@ export function StudioWorkspace() {
                     )}
                   </div>
 
+                  {videoUrl && !isPending && (
+                    <Button variant="outline" className="w-full" asChild>
+                      <a href={downloadHref(videoUrl, title || 'reelwright-scene')} download>
+                        <Download className="mr-2 h-4 w-4" />
+                        Download clip
+                      </a>
+                    </Button>
+                  )}
+
                   <div className="space-y-2">
                     <Label>Format</Label>
                     <div className="grid grid-cols-2 gap-2">
@@ -1444,17 +1458,24 @@ export function StudioWorkspace() {
                   </Button>
 
                   {stillUrl && (
-                    <Button
-                      variant="outline"
-                      className="w-full"
-                      onClick={() => {
-                        setSourceStillUrl(stillUrl);
-                        setStudioPanel('animate');
-                      }}
-                    >
-                      <Play className="mr-2 h-4 w-4" />
-                      Animate this still
-                    </Button>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button variant="outline" asChild>
+                        <a href={downloadHref(stillUrl, title || 'reelwright-still')} download>
+                          <Download className="mr-2 h-4 w-4" />
+                          Download
+                        </a>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setSourceStillUrl(stillUrl);
+                          setStudioPanel('animate');
+                        }}
+                      >
+                        <Play className="mr-2 h-4 w-4" />
+                        Animate this still
+                      </Button>
+                    </div>
                   )}
                 </CardContent>
               </Card>
@@ -1527,6 +1548,15 @@ export function StudioWorkspace() {
                       </div>
                     )}
                   </div>
+
+                  {videoUrl && !isPending && (
+                    <Button variant="outline" className="w-full" asChild>
+                      <a href={downloadHref(videoUrl, title || 'reelwright-animation')} download>
+                        <Download className="mr-2 h-4 w-4" />
+                        Download clip
+                      </a>
+                    </Button>
+                  )}
 
                   {stillSourceField}
 
