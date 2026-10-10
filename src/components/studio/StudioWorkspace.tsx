@@ -8,7 +8,7 @@ import { useUserCredits } from '@/hooks/use-user-credits';
 import { useToast } from '@/hooks/use-toast';
 import { generateCharacter, saveCharacter } from '@/app/actions/studio-actions';
 import type { GenerateSceneResult } from '@/lib/studio/run-generate-scene';
-import { createCheckoutSession } from '@/app/actions/checkout';
+import { createCheckoutSession, getCreditPacks } from '@/app/actions/checkout';
 import { uploadCharacterAsset } from '@/lib/studio/upload-character-asset';
 import {
   SCENE_SOURCE_MAX_BYTES,
@@ -48,11 +48,10 @@ import {
   Play,
   Download,
 } from 'lucide-react';
-import { collection, query, where, orderBy } from 'firebase/firestore';
+import { collection, query, where } from 'firebase/firestore';
 import type {
   Character,
   ImageAspectRatio,
-  Product,
   Scene,
   StudioImage,
   StudioPanel,
@@ -111,7 +110,7 @@ export function StudioWorkspace() {
   const [chainProgress, setChainProgress] = useState<{ part: number; total: number } | null>(
     null
   );
-  const [isBuying, setIsBuying] = useState<string | null>(null);
+  const [isBuying, setIsBuying] = useState<number | null>(null);
 
   // New character form — asset is an optional local file upload
   const [charName, setCharName] = useState('');
@@ -120,11 +119,18 @@ export function StudioWorkspace() {
   const [charAssetFile, setCharAssetFile] = useState<File | null>(null);
   const [charAssetPreview, setCharAssetPreview] = useState<string | null>(null);
 
-  const productsQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return query(collection(firestore, 'products'), orderBy('credit_amount', 'asc'));
-  }, [firestore]);
-  const { data: creditPacks } = useCollection<Product>(productsQuery);
+  const [creditPacks, setCreditPacks] = useState<{ credits: number; cents: number }[] | null>(
+    null
+  );
+  useEffect(() => {
+    let cancelled = false;
+    void getCreditPacks().then((packs) => {
+      if (!cancelled) setCreditPacks(packs);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const myCharactersQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -895,21 +901,21 @@ export function StudioWorkspace() {
     });
   };
 
-  const handlePurchase = async (priceId: string) => {
+  const handlePurchase = async (packCredits: number) => {
     if (!user) {
       setAuthOpen(true);
       return;
     }
-    setIsBuying(priceId);
+    setIsBuying(packCredits);
     try {
-      await createCheckoutSession({ userId: user.uid, priceId });
+      const { url } = await createCheckoutSession({ userId: user.uid, credits: packCredits });
+      window.location.assign(url);
     } catch {
       toast({
         variant: 'destructive',
         title: 'Checkout error',
         description: 'Could not start purchase.',
       });
-    } finally {
       setIsBuying(null);
     }
   };
@@ -948,31 +954,35 @@ export function StudioWorkspace() {
       <Card className="border-primary/30 bg-primary/5">
         <CardHeader className="pb-2">
           <CardTitle className="font-display text-lg">Keep creating</CardTitle>
-          <CardDescription>Grab a pack when you&apos;re ready for more.</CardDescription>
+          <CardDescription>
+            1 credit = 1 second of video. Credits never expire.
+          </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3">
-          {(creditPacks || []).map((pack) => (
+          {(creditPacks || []).map((pack, index) => (
             <div
-              key={pack.stripe_price_id}
+              key={pack.credits}
               className={cn(
                 'flex items-center justify-between rounded-lg border border-border/70 px-3 py-2',
-                pack.display_tag && 'border-primary/40'
+                index === 1 && 'border-primary/40'
               )}
             >
               <div>
-                <p className="font-medium text-sm">{pack.name}</p>
+                <p className="font-medium text-sm">
+                  {pack.credits} credits · ${(pack.cents / 100).toFixed(pack.cents % 100 ? 2 : 0)}
+                </p>
                 <p className="text-xs text-muted-foreground">
-                  {pack.credit_amount} credits · ${pack.price_usd}
+                  About {Math.floor(pack.credits / SEGMENT_SECONDS)} ten-second videos
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                {pack.display_tag ? <Badge>{pack.display_tag}</Badge> : null}
+                {index === 1 ? <Badge>Popular</Badge> : null}
                 <Button
                   size="sm"
-                  disabled={isBuying === pack.stripe_price_id}
-                  onClick={() => handlePurchase(pack.stripe_price_id)}
+                  disabled={isBuying !== null}
+                  onClick={() => handlePurchase(pack.credits)}
                 >
-                  {isBuying === pack.stripe_price_id ? (
+                  {isBuying === pack.credits ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     'Buy'
@@ -981,7 +991,10 @@ export function StudioWorkspace() {
               </div>
             </div>
           ))}
-          {(!creditPacks || creditPacks.length === 0) && (
+          {creditPacks === null && (
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          )}
+          {creditPacks?.length === 0 && (
             <p className="text-sm text-muted-foreground">Packs will show up here soon.</p>
           )}
         </CardContent>

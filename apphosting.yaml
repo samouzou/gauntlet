@@ -21,3 +21,10 @@ env:
   # AppSumo code signing key: firebase apphosting:secrets:set APPSUMO_CODE_SECRET
   - variable: APPSUMO_CODE_SECRET
     secret: APPSUMO_CODE_SECRET
+  # Verza's Stripe account (shared with Prism so credit packs reuse its prices):
+  #   firebase apphosting:secrets:set STRIPE_SECRET_KEY
+  #   firebase apphosting:secrets:set STRIPE_WEBHOOK_SECRET
+  - variable: STRIPE_SECRET_KEY
+    secret: STRIPE_SECRET_KEY
+  - variable: STRIPE_WEBHOOK_SECRET
+    secret: STRIPE_WEBHOOK_SECRET
