@@ -132,7 +132,15 @@ function useInView<T extends Element>() {
   return { ref, inView };
 }
 
-function PhoneClip({ example, index }: { example: MarketingExample; index: number }) {
+export function PhoneClip({
+  example,
+  index,
+  showCaption = true,
+}: {
+  example: MarketingExample;
+  index: number;
+  showCaption?: boolean;
+}) {
   const { ref, inView } = useInView<HTMLDivElement>();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -232,17 +240,19 @@ function PhoneClip({ example, index }: { example: MarketingExample; index: numbe
         </div>
       </div>
 
-      <div className="mt-3 px-1">
-        <p className="text-[10px] uppercase tracking-[0.18em] text-primary">{example.category}</p>
-        <p className="text-sm font-medium leading-snug">{example.business}</p>
-        <Link
-          href={`/studio?${new URLSearchParams({ prompt: example.prompt, ratio: '9:16' })}`}
-          className="mt-1 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-        >
-          <Sparkles className="h-3.5 w-3.5" />
-          Make one like this
-        </Link>
-      </div>
+      {showCaption && (
+        <div className="mt-3 px-1">
+          <p className="text-[10px] uppercase tracking-[0.18em] text-primary">{example.category}</p>
+          <p className="text-sm font-medium leading-snug">{example.business}</p>
+          <Link
+            href={`/studio?${new URLSearchParams({ prompt: example.prompt, ratio: '9:16' })}`}
+            className="mt-1 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            Make an ad like this
+          </Link>
+        </div>
+      )}
     </div>
   );
 }

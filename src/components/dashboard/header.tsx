@@ -42,10 +42,10 @@ export function Header() {
           <Link href="/#examples">Examples</Link>
         </Button>
         <Button asChild variant="ghost" size="sm">
-          <Link href="/#characters">Characters</Link>
+          <Link href="/#formats">Ad formats</Link>
         </Button>
         <Button asChild variant="ghost" size="sm">
-          <Link href="/#scenes">Scenes</Link>
+          <Link href="/#pricing">Pricing</Link>
         </Button>
         <Button asChild variant="ghost" size="sm">
           <Link href="/studio">Studio</Link>

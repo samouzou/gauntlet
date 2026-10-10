@@ -23,7 +23,7 @@ const sans = Figtree({
 
 const title = BRAND.name;
 const description =
-  'Reelwright is the video marketing tool for small businesses. Restaurants, clinics, salons and local shops turn a sentence into Reels, TikToks and Shorts in minutes — up to 40 seconds, no film crew.';
+  'Reelwright is the AI ad generator for video ads, UGC ads and image ads. Describe your product or offer and get scroll-stopping ads for Reels, TikTok, Shorts and Meta in minutes — no camera, no crew.';
 const url = process.env.NEXT_PUBLIC_APP_URL || 'https://reelwright.tryverza.com';
 
 export const metadata: Metadata = {
@@ -34,15 +34,17 @@ export const metadata: Metadata = {
   },
   description,
   keywords: [
-    'AI video',
+    'AI ad generator',
     BRAND.name,
-    'small business marketing',
-    'video marketing',
-    'Instagram Reels',
-    'TikTok',
+    'AI video ads',
+    'UGC ads',
+    'image ads',
+    'ad creative',
+    'Instagram Reels ads',
+    'TikTok ads',
     'YouTube Shorts',
-    'restaurant promo video',
-    'video studio',
+    'Facebook ads',
+    'small business marketing',
   ],
   openGraph: {
     title,
@@ -86,9 +88,9 @@ export default function RootLayout({
               <footer className="py-8 border-t border-border/50 mt-auto">
                 <div className="container mx-auto flex flex-col items-center gap-2 text-sm text-muted-foreground">
                   <p className="font-display text-foreground/85">
-                    {BRAND.name} — make the reel continue.
+                    {BRAND.name} — the AI ad generator.
                   </p>
-                  <p>A studio for characters, scenes, and the next cut.</p>
+                  <p>Video ads, UGC ads and image ads for every channel.</p>
                   <p className="text-xs text-muted-foreground/70">
                     © {new Date().getFullYear()} {BRAND.name} by Verza Technologies, Inc.
                   </p>

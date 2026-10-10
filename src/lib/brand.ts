@@ -7,5 +7,5 @@ export const BRAND = {
   name: 'Reelwright',
   aiName: 'Arc',
   aiTagline:
-    'The video marketing studio for small businesses — promos for every channel in minutes.',
+    'The AI ad generator for video, UGC and image ads — ready for every channel in minutes.',
 } as const;
