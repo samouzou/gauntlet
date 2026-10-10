@@ -14,8 +14,6 @@ import {
 } from '@/lib/studio/run-generate-scene';
 import { z } from 'zod';
 
-export type { GenerateSceneInput, GenerateSceneResult };
-
 /** Kept for compatibility — prefer POST /api/studio/generate for long Omni jobs. */
 export async function generateScene(input: GenerateSceneInput): Promise<GenerateSceneResult> {
   return runGenerateScene(input);

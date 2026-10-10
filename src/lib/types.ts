@@ -32,6 +32,8 @@ export interface Scene {
   aspectRatio?: VideoAspectRatio | null;
   characterIds: string[];
   interactionId?: string | null;
+  /** Length of the current cut; scenes grow 10s at a time up to 40s. */
+  durationSeconds?: number | null;
   isSample?: boolean;
   userId?: string | null;
   status?: 'draft' | 'generating' | 'ready' | 'error';

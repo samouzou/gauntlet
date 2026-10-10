@@ -37,7 +37,7 @@ service cloud.firestore {
       allow create: if isOwner(userId)
         && request.resource.data.credits is number
         && request.resource.data.credits >= 0
-        && request.resource.data.credits <= 15
+        && request.resource.data.credits <= 20
         && noPlanFields();
 
       // Clients may update profile fields but never mutate credits / counters / plan.

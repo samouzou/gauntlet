@@ -2,7 +2,7 @@ import { adminDb } from '@/firebase/admin';
 import { FieldValue } from 'firebase-admin/firestore';
 
 /** Starter credits when a profile is first created server-side. */
-export const STARTER_CREDITS = 15;
+export const STARTER_CREDITS = 20;
 
 /**
  * Spend `amount` credits for a generation.

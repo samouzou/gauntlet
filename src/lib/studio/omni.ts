@@ -427,6 +427,61 @@ function buildMinimalBody(input: {
   return body;
 }
 
+const EXTEND_MODELS = Array.from(
+  new Set(
+    [process.env.OMNI_EXTEND_MODEL?.trim(), OMNI_MODEL, 'gemini-omni-1.1-flash'].filter(
+      (m): m is string => Boolean(m)
+    )
+  )
+);
+
+/**
+ * Continues a clip by ~10 seconds. Omni reads the uploaded tail (10s max) and returns
+ * the tail plus the new part, so callers should replace the tail with the output.
+ */
+export async function extendWithOmni(input: {
+  tailUri: string;
+  prompt: string;
+}): Promise<OmniGenerateResult> {
+  const apiKey = getApiKey();
+  const text = `[# Sources <VIDEO_0>@Video1] ${input.prompt}`.replace(/\s+/g, ' ').trim();
+  const contentParts = [
+    { type: 'video', uri: input.tailUri, mime_type: 'video/mp4' },
+    { type: 'text', text },
+  ];
+
+  let raw: any;
+  let lastError: unknown;
+  for (const model of EXTEND_MODELS) {
+    try {
+      console.info('[omni] extend interaction', { model, promptChars: text.length });
+      raw = await postInteraction(apiKey, {
+        model,
+        input: contentParts,
+        store: true,
+        background: false,
+        response_format: { type: 'video', delivery: 'uri' },
+      });
+      break;
+    } catch (error: any) {
+      lastError = error;
+      const message = String(error?.message || '');
+      if (!/HTTP 4\d\d|INVALID|NOT_FOUND|not found|unsupported/i.test(message)) throw error;
+      console.warn('[omni] extend failed; trying next model', message.slice(0, 300));
+    }
+  }
+  if (!raw) throw lastError;
+
+  const settled = await waitForVideo(apiKey, raw);
+  return {
+    interactionId: settled.raw?.id || raw?.id || '',
+    videoUri: settled.videoUri,
+    videoBase64: settled.videoBase64,
+    mimeType: settled.mimeType,
+    raw: { id: settled.raw?.id || raw?.id, status: settled.raw?.status || raw?.status },
+  };
+}
+
 export async function generateWithOmni(input: OmniGenerateInput): Promise<OmniGenerateResult> {
   const apiKey = getApiKey();
   const isFollowUpEdit = Boolean(input.previousInteractionId);

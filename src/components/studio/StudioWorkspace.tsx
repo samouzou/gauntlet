@@ -59,7 +59,15 @@ import type {
   VideoAspectRatio,
 } from '@/lib/types';
 import type { GenerateImageResult } from '@/lib/studio/run-generate-image';
-import { CREDIT_COSTS, creditLabel } from '@/lib/studio/pricing';
+import {
+  CREDIT_COSTS,
+  SEGMENT_SECONDS,
+  VIDEO_LENGTHS,
+  creditLabel,
+  formatCredits,
+  videoLengthCost,
+  type VideoLength,
+} from '@/lib/studio/pricing';
 import { uploadStudioImage } from '@/lib/studio/upload-studio-image';
 import { BRAND } from '@/lib/brand';
 import { cn } from '@/lib/utils';
@@ -96,8 +104,13 @@ export function StudioWorkspace() {
   const [isUploadingStill, setIsUploadingStill] = useState(false);
   const [isUploadingSource, setIsUploadingSource] = useState(false);
   const [pendingKind, setPendingKind] = useState<
-    'generate' | 'edit' | 'edit_upload' | 'image' | 'restyle' | null
+    'generate' | 'edit' | 'edit_upload' | 'extend' | 'image' | 'restyle' | null
   >(null);
+  const [targetLength, setTargetLength] = useState<VideoLength>(10);
+  const [durationSeconds, setDurationSeconds] = useState<number | null>(null);
+  const [chainProgress, setChainProgress] = useState<{ part: number; total: number } | null>(
+    null
+  );
   const [isBuying, setIsBuying] = useState<string | null>(null);
 
   // New character form — asset is an optional local file upload
@@ -144,6 +157,7 @@ export function StudioWorkspace() {
     setTitle(scene.title || '');
     setSelectedCharacterIds(scene.characterIds || []);
     setVideoUrl(scene.videoUrl || null);
+    setDurationSeconds(scene.durationSeconds ?? (scene.videoUrl ? SEGMENT_SECONDS : null));
     setInteractionId(scene.interactionId || null);
     setPreviewImage(scene.thumbnailUrl || null);
     setSourceVideoUrl(scene.sourceVideoUrl || null);
@@ -157,6 +171,7 @@ export function StudioWorkspace() {
     setPrompt('');
     setTitle('');
     setVideoUrl(null);
+    setDurationSeconds(null);
     setInteractionId(null);
     setPreviewImage(null);
     setSourceVideoUrl(null);
@@ -179,6 +194,13 @@ export function StudioWorkspace() {
     setPrompt((prev) => prev || `${character.name} in a new scene — ${character.description}`);
     setTitle((prev) => prev || `${character.name} scene`);
   }, [searchParams, characters]);
+
+  useEffect(() => {
+    const promptParam = searchParams.get('prompt');
+    if (!promptParam) return;
+    setPrompt((prev) => prev || promptParam.slice(0, 4000));
+    if (searchParams.get('ratio') === '9:16') setAspectRatio('9:16');
+  }, [searchParams]);
 
   useEffect(() => {
     const sceneIdParam = searchParams.get('scene');
@@ -485,6 +507,87 @@ export function StudioWorkspace() {
     });
   };
 
+  const postGenerate = async (body: Record<string, unknown>): Promise<GenerateSceneResult> => {
+    const response = await fetch('/api/studio/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    try {
+      return (await response.json()) as GenerateSceneResult;
+    } catch {
+      throw new Error(
+        response.ok
+          ? 'That scene didn’t come through. Try again.'
+          : 'That took too long. Give it another try in a moment.'
+      );
+    }
+  };
+
+  const applySceneResult = (result: Extract<GenerateSceneResult, { ok: true }>) => {
+    setSceneId(result.sceneId);
+    setInteractionId(result.interactionId || null);
+    setVideoUrl(result.videoUrl || null);
+    setDurationSeconds(result.durationSeconds ?? SEGMENT_SECONDS);
+    router.replace(`/studio?scene=${result.sceneId}`);
+  };
+
+  const sceneLength = durationSeconds ?? (videoUrl ? SEGMENT_SECONDS : 0);
+  const canExtend =
+    Boolean(videoUrl && sceneId && !sceneId.startsWith('sample-')) &&
+    sceneLength < VIDEO_LENGTHS[VIDEO_LENGTHS.length - 1];
+  // Conversational edits only see the last 10s part, so they'd drop the rest of a long scene.
+  const canEditCut = sceneLength <= SEGMENT_SECONDS + 1;
+
+  const runExtend = () => {
+    if (!canExtend || !sceneId) return;
+    if (!requireAuthOrCredits(CREDIT_COSTS.video_extend)) return;
+    const direction = editInstruction.trim() || prompt.trim();
+    if (direction.length < 8) {
+      toast({
+        variant: 'destructive',
+        title: 'Tell us what happens next',
+        description: 'A sentence about where the action goes next helps the new part land.',
+      });
+      return;
+    }
+
+    startTransition(async () => {
+      setPendingKind('extend');
+      try {
+        const result = await postGenerate({
+          userId: user!.uid,
+          prompt: direction,
+          sceneId,
+          aspectRatio,
+          mode: 'extend',
+        });
+        if (!result.ok) {
+          toast({
+            variant: 'destructive',
+            title: 'Couldn’t extend the scene',
+            description: result.error || 'That part didn’t come through. Try again.',
+          });
+          return;
+        }
+        applySceneResult(result);
+        setEditInstruction('');
+        toast({
+          title: `Scene is now ${result.durationSeconds ?? sceneLength + SEGMENT_SECONDS}s`,
+          description: 'Keep extending, or download the cut.',
+        });
+      } catch (err: any) {
+        toast({
+          variant: 'destructive',
+          title: 'Couldn’t extend the scene',
+          description: err?.message || 'That part didn’t come through. Try again.',
+        });
+      } finally {
+        setPendingKind(null);
+      }
+    });
+  };
+
   const runGenerate = (mode: 'generate' | 'edit' | 'edit_upload') => {
     const isAnimate = studioPanel === 'animate' && mode === 'generate';
     const pricedCost = isAnimate
@@ -494,8 +597,11 @@ export function StudioWorkspace() {
         : selectedCharacters.some((c) => !c.isSample && c.imageUrl)
           ? CREDIT_COSTS.image_to_video
           : CREDIT_COSTS.text_to_video;
+    const startsNewCut = mode === 'generate' || (mode === 'edit_upload' && !interactionId);
+    const parts = startsNewCut ? targetLength / SEGMENT_SECONDS : 1;
+    const totalCost = pricedCost + (parts - 1) * CREDIT_COSTS.video_extend;
 
-    if (!requireAuthOrCredits(pricedCost)) return;
+    if (!requireAuthOrCredits(totalCost)) return;
 
     const finalPrompt =
       mode === 'edit'
@@ -536,6 +642,7 @@ export function StudioWorkspace() {
 
     startTransition(async () => {
       setPendingKind(mode);
+      setChainProgress(parts > 1 ? { part: 1, total: parts } : null);
       try {
         // Animate uses the source/result still as the Omni reference.
         // Video mode uses user cast stills (samples are display-only).
@@ -577,37 +684,22 @@ export function StudioWorkspace() {
         const resolvedMode =
           mode === 'edit_upload' && interactionId ? 'edit' : mode;
 
-        const response = await fetch('/api/studio/generate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId: user!.uid,
-            prompt: promptWithCast,
-            title: title || undefined,
-            characterIds: isAnimate ? [] : selectedCharacterIds,
-            referenceImageUrls,
-            previousInteractionId:
-              resolvedMode === 'edit' || (resolvedMode === 'edit_upload' && interactionId)
-                ? interactionId
-                : null,
-            sourceVideoUrl:
-              resolvedMode === 'edit_upload' && !interactionId ? sourceVideoUrl : null,
-            aspectRatio,
-            sceneId: sceneId?.startsWith('sample-') ? null : sceneId,
-            mode: resolvedMode,
-          }),
+        const result = await postGenerate({
+          userId: user!.uid,
+          prompt: promptWithCast,
+          title: title || undefined,
+          characterIds: isAnimate ? [] : selectedCharacterIds,
+          referenceImageUrls,
+          previousInteractionId:
+            resolvedMode === 'edit' || (resolvedMode === 'edit_upload' && interactionId)
+              ? interactionId
+              : null,
+          sourceVideoUrl:
+            resolvedMode === 'edit_upload' && !interactionId ? sourceVideoUrl : null,
+          aspectRatio,
+          sceneId: sceneId?.startsWith('sample-') ? null : sceneId,
+          mode: resolvedMode,
         });
-
-        let result: GenerateSceneResult;
-        try {
-          result = (await response.json()) as GenerateSceneResult;
-        } catch {
-          throw new Error(
-            response.ok
-              ? 'That scene didn’t come through. Try again.'
-              : 'That took too long. Give it another try in a moment.'
-          );
-        }
 
         if (!result.ok) {
           toast({
@@ -618,10 +710,28 @@ export function StudioWorkspace() {
           return;
         }
 
-        setSceneId(result.sceneId);
-        setInteractionId(result.interactionId || null);
-        setVideoUrl(result.videoUrl || null);
-        router.replace(`/studio?scene=${result.sceneId}`);
+        applySceneResult(result);
+
+        for (let part = 2; part <= parts; part += 1) {
+          setChainProgress({ part, total: parts });
+          const next = await postGenerate({
+            userId: user!.uid,
+            prompt: `Continue the action naturally. ${finalPrompt}`,
+            sceneId: result.sceneId,
+            aspectRatio,
+            mode: 'extend',
+          });
+          if (!next.ok) {
+            toast({
+              variant: 'destructive',
+              title: `Stopped at ${(part - 1) * SEGMENT_SECONDS}s`,
+              description: `${next.error || 'The next part didn’t come through.'} Your scene so far is saved; use Extend to keep going.`,
+            });
+            return;
+          }
+          applySceneResult(next);
+        }
+
         toast({
           title:
             resolvedMode === 'edit' || resolvedMode === 'edit_upload'
@@ -645,9 +755,39 @@ export function StudioWorkspace() {
         });
       } finally {
         setPendingKind(null);
+        setChainProgress(null);
       }
     });
   };
+
+  const lengthPicker = (
+    <div className="space-y-2">
+      <Label>Length</Label>
+      <div className="grid grid-cols-4 gap-2">
+        {VIDEO_LENGTHS.map((seconds) => (
+          <Button
+            key={seconds}
+            type="button"
+            size="sm"
+            variant={targetLength === seconds ? 'default' : 'outline'}
+            disabled={isPending}
+            onClick={() => setTargetLength(seconds)}
+          >
+            {seconds}s
+          </Button>
+        ))}
+      </div>
+      <p className="text-xs text-muted-foreground">
+        1 credit per second · rendered in 10-second parts that continue the same shot.
+      </p>
+    </div>
+  );
+
+  const pendingVideoLabel = chainProgress
+    ? `Shooting part ${chainProgress.part} of ${chainProgress.total}…`
+    : pendingKind === 'extend'
+      ? 'Adding 10 more seconds…'
+      : null;
 
   const resetCharacterForm = () => {
     setCharName('');
@@ -777,8 +917,9 @@ export function StudioWorkspace() {
 
   const panelCopy: Record<StudioPanel, { title: string; subtitle: string }> = {
     video: {
-      title: 'Cast. Shoot. Continue.',
-      subtitle: 'Pick a cast, describe the moment, and keep shaping what happens next.',
+      title: 'Describe it. Post it.',
+      subtitle:
+        'Tell us about your promo — the dish, the service, the vibe — and get a 10 to 40 second video for Reels, TikTok and Shorts.',
     },
     image: {
       title: 'Still from words.',
@@ -1117,11 +1258,17 @@ export function StudioWorkspace() {
                       <div className="absolute inset-0 bg-black/55 backdrop-blur-[2px] flex flex-col items-center justify-center gap-2">
                         <Loader2 className="h-8 w-8 animate-spin text-primary" />
                         <p className="text-sm text-white/90">
-                          {pendingKind === 'edit_upload' ||
-                          (pendingKind === 'edit' && sourceVideoUrl)
-                            ? `${BRAND.aiName} is reshaping your clip…`
-                            : 'Creating your scene…'}
+                          {pendingVideoLabel ??
+                            (pendingKind === 'edit_upload' ||
+                            (pendingKind === 'edit' && sourceVideoUrl)
+                              ? `${BRAND.aiName} is reshaping your clip…`
+                              : 'Creating your scene…')}
                         </p>
+                        {(chainProgress || pendingKind === 'extend') && (
+                          <p className="text-xs text-white/70">
+                            Each 10-second part takes a minute or two. Keep this tab open.
+                          </p>
+                        )}
                       </div>
                     )}
                   </div>
@@ -1160,6 +1307,8 @@ export function StudioWorkspace() {
                       </Button>
                     </div>
                   </div>
+
+                  {lengthPicker}
 
                   {!interactionId && (
                     <div className="space-y-2">
@@ -1248,7 +1397,7 @@ export function StudioWorkspace() {
                         ) : (
                           <Sparkles className="mr-2 h-4 w-4" />
                         )}
-                        Apply cut · {creditLabel('edit_upload')}
+                        Apply cut · {formatCredits(videoLengthCost(targetLength))}
                       </Button>
                       <Button
                         variant="outline"
@@ -1256,7 +1405,7 @@ export function StudioWorkspace() {
                         disabled={isPending || isUploadingSource}
                         onClick={() => runGenerate('generate')}
                       >
-                        Shoot a new scene instead · {creditLabel('text_to_video')}
+                        Shoot a new scene instead · {formatCredits(videoLengthCost(targetLength))}
                       </Button>
                     </>
                   ) : (
@@ -1271,31 +1420,62 @@ export function StudioWorkspace() {
                       ) : (
                         <Sparkles className="mr-2 h-4 w-4" />
                       )}
-                      Shoot scene · {creditLabel('text_to_video')}
+                      Shoot {targetLength}s scene · {formatCredits(videoLengthCost(targetLength))}
                     </Button>
                   )}
 
-                  {interactionId && (
+                  {(interactionId || canExtend) && (
                     <div className="space-y-2 pt-2 border-t border-border/60">
-                      <Label htmlFor="edit">Keep going</Label>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="edit">Keep going</Label>
+                        {videoUrl && sceneLength > 0 && (
+                          <span className="text-xs text-muted-foreground">
+                            Scene is {sceneLength}s
+                          </span>
+                        )}
+                      </div>
                       <Textarea
                         id="edit"
                         rows={3}
                         value={editInstruction}
                         onChange={(e) => setEditInstruction(e.target.value)}
-                        placeholder="Make the rain heavier and push the camera left…"
+                        placeholder={
+                          canEditCut
+                            ? 'Make the rain heavier, or say what happens next…'
+                            : 'What happens next…'
+                        }
                       />
-                      <Button
-                        variant="secondary"
-                        className="w-full"
-                        disabled={isPending}
-                        onClick={() => runGenerate('edit')}
-                      >
-                        {isPending && pendingKind === 'edit' ? (
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        ) : null}
-                        Apply cut · {creditLabel('video_edit')}
-                      </Button>
+                      <div className={cn('grid gap-2', interactionId && canEditCut && 'sm:grid-cols-2')}>
+                        {interactionId && canEditCut && (
+                          <Button
+                            variant="secondary"
+                            disabled={isPending}
+                            onClick={() => runGenerate('edit')}
+                          >
+                            {isPending && pendingKind === 'edit' ? (
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : null}
+                            Apply cut · {creditLabel('video_edit')}
+                          </Button>
+                        )}
+                        {canExtend && (
+                          <Button variant="secondary" disabled={isPending} onClick={runExtend}>
+                            {isPending && pendingKind === 'extend' ? (
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                              <Plus className="mr-2 h-4 w-4" />
+                            )}
+                            Extend +10s · {creditLabel('video_extend')}
+                          </Button>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {canEditCut
+                          ? 'Apply cut reshapes this take. Extend continues it for 10 more seconds, up to 40s.'
+                          : canExtend
+                            ? 'Extend continues the story for 10 more seconds, up to 40s.'
+                            : 'This scene is at the 40s max. Download it, or shoot a new one.'}
+                      </p>
                     </div>
                   )}
                 </CardContent>
@@ -1544,7 +1724,9 @@ export function StudioWorkspace() {
                     {isPending && pendingKind === 'generate' && (
                       <div className="absolute inset-0 bg-black/55 backdrop-blur-[2px] flex flex-col items-center justify-center gap-2">
                         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                        <p className="text-sm text-white/90">Animating your still…</p>
+                        <p className="text-sm text-white/90">
+                          {pendingVideoLabel ?? 'Animating your still…'}
+                        </p>
                       </div>
                     )}
                   </div>
@@ -1584,6 +1766,8 @@ export function StudioWorkspace() {
                     </div>
                   </div>
 
+                  {lengthPicker}
+
                   <div className="space-y-2">
                     <Label htmlFor="animate-title">Title</Label>
                     <Input
@@ -1616,7 +1800,7 @@ export function StudioWorkspace() {
                     ) : (
                       <Play className="mr-2 h-4 w-4" />
                     )}
-                    Animate · {creditLabel('image_to_video')}
+                    Animate {targetLength}s · {formatCredits(videoLengthCost(targetLength))}
                   </Button>
                   {creditsPackCard}
                 </CardContent>

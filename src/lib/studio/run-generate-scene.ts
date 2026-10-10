@@ -1,11 +1,18 @@
 import { adminDb } from '@/firebase/admin';
 import { FieldValue } from 'firebase-admin/firestore';
-import { generateWithOmni } from '@/lib/studio/omni';
+import { extendWithOmni, generateWithOmni } from '@/lib/studio/omni';
 import { fetchRemoteVideoBuffer, uploadVideoToFilesApi } from '@/lib/studio/files-api';
 import { refundCredits, spendCredits } from '@/lib/studio/credits';
-import { creditCost } from '@/lib/studio/pricing';
+import { concat, cut, probe } from '@/lib/studio/ffmpeg';
+import { creditCost, SEGMENT_SECONDS } from '@/lib/studio/pricing';
 import { persistGeneratedVideo } from '@/lib/studio/upload-generated-video';
+import { mkdtemp, readFile, rm, writeFile } from 'fs/promises';
+import { tmpdir } from 'os';
+import path from 'path';
 import { z } from 'zod';
+
+/** Longest scene the studio will build by chaining 10-second parts. */
+export const MAX_SCENE_SECONDS = 40;
 
 const imageRefSchema = z
   .string()
@@ -37,9 +44,16 @@ export const generateSceneSchema = z
     sceneId: z.string().optional().nullable(),
     sourceVideoUrl: httpsUrlSchema.optional().nullable(),
     aspectRatio: z.enum(['16:9', '9:16']).optional().default('16:9'),
-    mode: z.enum(['generate', 'edit', 'edit_upload']).default('generate'),
+    mode: z.enum(['generate', 'edit', 'edit_upload', 'extend']).default('generate'),
   })
   .superRefine((data, ctx) => {
+    if (data.mode === 'extend' && !data.sceneId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Pick a finished scene to extend.',
+        path: ['sceneId'],
+      });
+    }
     if (data.mode === 'edit_upload' && !data.sourceVideoUrl && !data.previousInteractionId) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -57,6 +71,7 @@ export type GenerateSceneResult =
       sceneId: string;
       interactionId: string;
       videoUrl: string | null;
+      durationSeconds?: number | null;
     }
   | {
       ok: false;
@@ -131,7 +146,7 @@ export function humanizeServerError(
     return 'Couldn’t start that scene. Please try again in a moment.';
   }
 
-  if (/omni|gemini|firestore|firebase|api[_ ]?key|http \d+/i.test(message)) {
+  if (/omni|gemini|firestore|firebase|ffmpeg|clip length|api[_ ]?key|http \d+/i.test(message)) {
     if (stage === 'credits') {
       return 'We couldn’t update your balance. Sign out and back in, then try again.';
     }
@@ -159,6 +174,8 @@ export async function runGenerateScene(
   } catch (error: any) {
     return { ok: false, error: error?.message || 'Invalid generate request.' };
   }
+
+  if (data.mode === 'extend') return runExtendScene(data);
 
   const isFollowUpEdit =
     data.mode === 'edit' ||
@@ -239,6 +256,7 @@ export async function runGenerateScene(
       sourceVideoUrl: data.sourceVideoUrl || null,
       aspectRatio,
       mimeType: result.mimeType || null,
+      durationSeconds: SEGMENT_SECONDS,
       status: videoUrl ? 'ready' : 'error',
       updatedAt: FieldValue.serverTimestamp(),
       ...(data.sceneId ? {} : { createdAt: FieldValue.serverTimestamp() }),
@@ -259,6 +277,7 @@ export async function runGenerateScene(
       sceneId: sceneRef.id,
       interactionId: result.interactionId || '',
       videoUrl,
+      durationSeconds: SEGMENT_SECONDS,
     };
   } catch (error: any) {
     await refundCredits(data.userId, cost);
@@ -269,5 +288,127 @@ export async function runGenerateScene(
       message: String(error?.message || error).slice(0, 500),
     });
     return { ok: false, error: humanizeServerError(error, 'omni') };
+  }
+}
+
+function buildExtendPrompt(direction: string) {
+  return [
+    'Extend this video.',
+    'Keep the same people, wardrobe, setting, lighting, camera style and music so the cut is seamless.',
+    '0s means the start of the new part.',
+    direction.trim(),
+  ].join(' ');
+}
+
+/**
+ * Adds ~10 seconds to a finished scene: sends the last 10 seconds to Omni,
+ * which returns that tail plus the new part, then splices it after the head.
+ */
+async function runExtendScene(data: GenerateSceneInput): Promise<GenerateSceneResult> {
+  const sceneRef = adminDb.collection('scenes').doc(data.sceneId!);
+  const snap = await sceneRef.get();
+  const scene = snap.data();
+  if (!snap.exists || scene?.userId !== data.userId || !scene?.videoUrl) {
+    return { ok: false, error: 'That scene isn’t ready to extend yet.' };
+  }
+  if (Number(scene.durationSeconds || 0) >= MAX_SCENE_SECONDS) {
+    return { ok: false, error: `Scenes top out at ${MAX_SCENE_SECONDS} seconds.` };
+  }
+
+  const cost = creditCost('video_extend');
+  try {
+    await spendCredits(data.userId, cost);
+  } catch (error) {
+    return { ok: false, error: humanizeServerError(error, 'credits') };
+  }
+
+  const dir = await mkdtemp(path.join(tmpdir(), 'extend-'));
+  try {
+    const source = path.join(dir, 'source.mp4');
+    const remote = await fetchRemoteVideoBuffer(scene.videoUrl);
+    await writeFile(source, remote.buffer);
+    const info = await probe(source);
+    if (info.duration >= MAX_SCENE_SECONDS + 1) {
+      throw new Error(`Scenes top out at ${MAX_SCENE_SECONDS} seconds.`);
+    }
+    const size = { width: info.width, height: info.height };
+
+    const tailLength = Math.min(SEGMENT_SECONDS, info.duration);
+    const headLength = info.duration - tailLength;
+    const tail = path.join(dir, 'tail.mp4');
+    await cut(source, tail, headLength, tailLength, size);
+
+    const uploaded = await uploadVideoToFilesApi({
+      buffer: await readFile(tail),
+      mimeType: 'video/mp4',
+      displayName: `extend-${sceneRef.id}`,
+    });
+    const result = await extendWithOmni({
+      tailUri: uploaded.uri,
+      prompt: buildExtendPrompt(data.prompt),
+    });
+    if (!result.videoBase64) {
+      throw new Error('Omni finished without a video payload.');
+    }
+
+    const extended = path.join(dir, 'extended.mp4');
+    await writeFile(extended, Buffer.from(result.videoBase64, 'base64'));
+    const extendedInfo = await probe(extended);
+    const extendedNorm = path.join(dir, 'extended-norm.mp4');
+    await cut(extended, extendedNorm, 0, extendedInfo.duration, size);
+
+    const pieces = [extendedNorm];
+    if (headLength > 0.5) {
+      const head = path.join(dir, 'head.mp4');
+      await cut(source, head, 0, headLength, size);
+      pieces.unshift(head);
+    }
+    const joined = path.join(dir, 'joined.mp4');
+    if (pieces.length > 1) {
+      await concat(pieces, joined);
+    }
+    const finalPath = pieces.length > 1 ? joined : extendedNorm;
+    const durationSeconds = Math.round((await probe(finalPath)).duration);
+
+    const videoUrl = await persistGeneratedVideo({
+      userId: data.userId,
+      sceneId: sceneRef.id,
+      videoBase64: (await readFile(finalPath)).toString('base64'),
+      mimeType: 'video/mp4',
+      revision: `${result.interactionId || 'ext'}-${durationSeconds}s`,
+    });
+    if (!videoUrl) {
+      throw new Error('Omni finished without a video payload.');
+    }
+
+    await sceneRef.set(
+      {
+        videoUrl,
+        thumbnailUrl: videoUrl,
+        interactionId: result.interactionId || null,
+        mimeType: 'video/mp4',
+        durationSeconds,
+        status: 'ready',
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+
+    return {
+      ok: true,
+      sceneId: sceneRef.id,
+      interactionId: result.interactionId || '',
+      videoUrl,
+      durationSeconds,
+    };
+  } catch (error: any) {
+    await refundCredits(data.userId, cost);
+    console.error('[runExtendScene] failed', {
+      sceneId: sceneRef.id,
+      message: String(error?.message || error).slice(0, 500),
+    });
+    return { ok: false, error: humanizeServerError(error, 'omni') };
+  } finally {
+    await rm(dir, { recursive: true, force: true }).catch(() => {});
   }
 }

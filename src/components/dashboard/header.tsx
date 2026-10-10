@@ -39,6 +39,9 @@ export function Header() {
 
       <nav className="hidden md:flex items-center gap-1 ml-2">
         <Button asChild variant="ghost" size="sm">
+          <Link href="/#examples">Examples</Link>
+        </Button>
+        <Button asChild variant="ghost" size="sm">
           <Link href="/#characters">Characters</Link>
         </Button>
         <Button asChild variant="ghost" size="sm">

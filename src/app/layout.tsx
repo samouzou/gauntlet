@@ -23,7 +23,7 @@ const sans = Figtree({
 
 const title = BRAND.name;
 const description =
-  'Create characters, shoot scenes, and keep editing by talking. Reelwright is a studio for stories that continue.';
+  'Reelwright is the video marketing tool for small businesses. Restaurants, clinics, salons and local shops turn a sentence into Reels, TikToks and Shorts in minutes — up to 40 seconds, no film crew.';
 const url = process.env.NEXT_PUBLIC_APP_URL || 'https://reelwright.tryverza.com';
 
 export const metadata: Metadata = {
@@ -36,9 +36,12 @@ export const metadata: Metadata = {
   keywords: [
     'AI video',
     BRAND.name,
-    'characters',
-    'scenes',
-    'storytelling',
+    'small business marketing',
+    'video marketing',
+    'Instagram Reels',
+    'TikTok',
+    'YouTube Shorts',
+    'restaurant promo video',
     'video studio',
   ],
   openGraph: {

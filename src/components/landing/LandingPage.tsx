@@ -4,7 +4,9 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { CharacterCard } from '@/components/studio/CharacterCard';
 import { SceneCard } from '@/components/studio/SceneCard';
+import { MarketingFeed } from '@/components/landing/MarketingFeed';
 import { SAMPLE_CHARACTERS, SAMPLE_SCENES } from '@/lib/studio/samples';
+import { BRAND } from '@/lib/brand';
 import { ArrowRight } from 'lucide-react';
 
 export function LandingPage() {
@@ -29,31 +31,72 @@ export function LandingPage() {
           Reelwright
         </p>
         <h1 className="mt-4 max-w-2xl text-xl sm:text-2xl text-muted-foreground font-normal animate-fade-up [animation-delay:70ms]">
-          Characters that hold. Scenes that continue. Edit by talking.
+          The video marketing tool for small businesses.
         </h1>
         <p className="mt-3 max-w-xl text-sm sm:text-base text-muted-foreground/90 animate-fade-up [animation-delay:130ms]">
-          Meet a cast. Step into a scene. Shape the next moment in your own words.
+          Restaurants, clinics, salons and local shops: describe your promo in a sentence and get
+          a 10 to 40 second video for Reels, TikTok and Shorts in minutes. No film crew.
         </p>
         <div className="mt-8 flex flex-wrap items-center justify-center gap-3 animate-fade-up [animation-delay:190ms]">
           <Button asChild size="lg" className="px-8">
             <Link href="/studio">
-              Open studio
+              Make your first video
               <ArrowRight className="ml-2 h-4 w-4" />
             </Link>
           </Button>
           <Button asChild size="lg" variant="outline">
-            <a href="#characters">Meet the cast</a>
+            <a href="#examples">See examples</a>
           </Button>
+        </div>
+      </section>
+
+      <section id="examples" className="max-w-6xl mx-auto px-4 sm:px-0 mb-24">
+        <div className="mb-8">
+          <p className="text-xs uppercase tracking-[0.2em] text-primary mb-2">Made with {BRAND.name}</p>
+          <h2 className="font-display text-3xl font-semibold tracking-tight">
+            Promos for the businesses on your block
+          </h2>
+          <p className="text-muted-foreground mt-1 text-sm max-w-2xl">
+            Every clip below came from a one-paragraph description. Pick one, swap in your
+            business, and post it the same day.
+          </p>
+        </div>
+        <MarketingFeed />
+      </section>
+
+      <section className="max-w-6xl mx-auto px-4 sm:px-0 mb-24">
+        <div className="grid gap-4 md:grid-cols-3">
+          {[
+            {
+              title: 'Describe the promo',
+              body: 'The dish, the service, the offer, the vibe. Plain words, one paragraph.',
+            },
+            {
+              title: 'Pick a length',
+              body: '10, 20, 30 or 40 seconds, vertical or widescreen. Extend any take 10 seconds at a time.',
+            },
+            {
+              title: 'Post everywhere',
+              body: 'Download the MP4 and drop it into Instagram, TikTok, YouTube Shorts or your website.',
+            },
+          ].map((step, i) => (
+            <div key={step.title} className="rounded-2xl border border-border/60 bg-card/40 p-5">
+              <p className="text-xs text-primary font-semibold">0{i + 1}</p>
+              <p className="mt-2 font-display text-lg font-semibold tracking-tight">{step.title}</p>
+              <p className="mt-1 text-sm text-muted-foreground">{step.body}</p>
+            </div>
+          ))}
         </div>
       </section>
 
       <section id="characters" className="max-w-6xl mx-auto px-2 sm:px-0 mb-20">
         <div className="flex items-end justify-between gap-4 mb-6">
           <div>
-            <p className="text-xs uppercase tracking-[0.2em] text-primary mb-2">The cast</p>
-            <h2 className="font-display text-3xl font-semibold tracking-tight">Start with a character</h2>
+            <p className="text-xs uppercase tracking-[0.2em] text-primary mb-2">Recurring faces</p>
+            <h2 className="font-display text-3xl font-semibold tracking-tight">Keep a familiar face</h2>
             <p className="text-muted-foreground mt-1 text-sm">
-              Pick someone who feels right — then take them into a scene.
+              Save a character — your chef, your stylist, your mascot — and bring them back in every
+              video.
             </p>
           </div>
         </div>
@@ -72,9 +115,9 @@ export function LandingPage() {
       <section id="scenes" className="max-w-6xl mx-auto px-2 sm:px-0 mb-24">
         <div className="mb-6">
           <p className="text-xs uppercase tracking-[0.2em] text-primary mb-2">Scenes</p>
-          <h2 className="font-display text-3xl font-semibold tracking-tight">Continue a story</h2>
+          <h2 className="font-display text-3xl font-semibold tracking-tight">Keep the story going</h2>
           <p className="text-muted-foreground mt-1 text-sm">
-            Open a moment, change the mood, keep going.
+            Open a scene, change the mood, or extend it into a longer spot.
           </p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
