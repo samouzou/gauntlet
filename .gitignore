@@ -40,6 +40,9 @@ next-env.d.ts
 .genkit/*
 .env*
 
+# AppSumo listing assets and redemption codes
+/appsumo-assets/
+
 # firebase
 firebase-debug.log
 firestore-debug.log

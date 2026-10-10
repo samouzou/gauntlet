@@ -4,34 +4,34 @@
 
 @layer base {
   :root {
-    /* Outpost — Midnight + Signal Teal */
-    --background: 222 45% 5%;
-    --foreground: 40 20% 94%;
+    /* Reelwright — Cinema void + Arc light */
+    --background: 240 10% 4%;
+    --foreground: 40 20% 96%;
 
-    --card: 222 35% 8%;
-    --card-foreground: 40 20% 94%;
+    --card: 240 8% 7%;
+    --card-foreground: 40 20% 96%;
 
-    --popover: 222 35% 8%;
-    --popover-foreground: 40 20% 94%;
+    --popover: 240 8% 7%;
+    --popover-foreground: 40 20% 96%;
 
-    --primary: 174 64% 47%;
-    --primary-foreground: 222 45% 6%;
+    --primary: 48 96% 62%;
+    --primary-foreground: 240 10% 6%;
 
-    --secondary: 222 25% 14%;
-    --secondary-foreground: 40 20% 94%;
+    --secondary: 240 6% 14%;
+    --secondary-foreground: 40 20% 96%;
 
-    --muted: 222 20% 12%;
-    --muted-foreground: 215 12% 58%;
+    --muted: 240 6% 12%;
+    --muted-foreground: 240 5% 58%;
 
-    --accent: 174 40% 16%;
-    --accent-foreground: 174 64% 65%;
+    --accent: 48 40% 16%;
+    --accent-foreground: 48 96% 70%;
 
-    --destructive: 0 62.8% 35%;
-    --destructive-foreground: 40 20% 94%;
+    --destructive: 0 62% 40%;
+    --destructive-foreground: 40 20% 96%;
 
-    --border: 222 20% 16%;
-    --input: 222 20% 16%;
-    --ring: 174 64% 47%;
+    --border: 240 6% 16%;
+    --input: 240 6% 16%;
+    --ring: 48 96% 62%;
 
     --radius: 0.75rem;
   }
@@ -44,129 +44,10 @@
   body {
     @apply bg-background text-foreground;
     background-image:
-      radial-gradient(ellipse 80% 50% at 50% -20%, hsl(174 64% 47% / 0.12), transparent),
-      radial-gradient(ellipse 60% 40% at 100% 0%, hsl(222 60% 30% / 0.25), transparent),
-      linear-gradient(180deg, hsl(222 45% 5%) 0%, hsl(222 40% 4%) 100%);
+      radial-gradient(ellipse 90% 55% at 50% -15%, hsl(48 96% 62% / 0.1), transparent 55%),
+      radial-gradient(ellipse 50% 40% at 100% 10%, hsl(210 80% 40% / 0.12), transparent),
+      linear-gradient(180deg, hsl(240 10% 4%) 0%, hsl(240 12% 3%) 100%);
     background-attachment: fixed;
     min-height: 100vh;
-  }
-}
-
-@layer utilities {
-  .job-prose {
-    @apply text-[15px] leading-7;
-    color: hsl(var(--muted-foreground));
-    overflow-wrap: anywhere;
-  }
-
-  .job-prose > :first-child {
-    @apply mt-0;
-  }
-
-  .job-prose > :last-child {
-    @apply mb-0;
-  }
-
-  /* Syndicated HTML often ships inline dark text — force theme colors. */
-  .job-prose :where(p, li, span, div, td, th, blockquote) {
-    color: hsl(var(--muted-foreground)) !important;
-    background: transparent !important;
-    background-color: transparent !important;
-  }
-
-  .job-prose :where(h1, h2, h3, h4, h5, h6, strong, b) {
-    color: hsl(var(--foreground)) !important;
-    @apply font-semibold;
-  }
-
-  .job-prose :where(h1, h2, h3, h4, h5, h6) {
-    @apply font-display tracking-tight;
-  }
-
-  .job-prose h1 {
-    @apply text-2xl mt-8 mb-3;
-  }
-
-  .job-prose h2 {
-    @apply text-xl mt-8 mb-3;
-  }
-
-  .job-prose h3 {
-    @apply text-lg mt-6 mb-2;
-  }
-
-  .job-prose h4,
-  .job-prose h5,
-  .job-prose h6 {
-    @apply text-base mt-5 mb-2;
-  }
-
-  .job-prose p {
-    @apply mb-4;
-  }
-
-  .job-prose ul,
-  .job-prose ol {
-    @apply my-4 pl-6 space-y-2;
-  }
-
-  .job-prose ul {
-    @apply list-disc;
-  }
-
-  .job-prose ol {
-    @apply list-decimal;
-  }
-
-  .job-prose li {
-    @apply pl-1;
-  }
-
-  .job-prose li > ul,
-  .job-prose li > ol {
-    @apply mt-2 mb-0;
-  }
-
-  .job-prose a {
-    color: hsl(var(--primary)) !important;
-    @apply underline underline-offset-2 hover:opacity-90 break-words;
-  }
-
-  .job-prose blockquote {
-    @apply border-l-2 border-primary/40 pl-4 italic my-4;
-  }
-
-  .job-prose hr {
-    @apply my-8 border-border/60;
-  }
-
-  .job-prose code {
-    @apply rounded bg-secondary/80 px-1.5 py-0.5 text-sm font-mono text-foreground;
-  }
-
-  .job-prose pre {
-    @apply my-4 overflow-x-auto rounded-lg border border-border/60 bg-secondary/40 p-4 text-sm;
-  }
-
-  .job-prose pre code {
-    @apply bg-transparent p-0;
-  }
-
-  .job-prose table {
-    @apply my-4 w-full border-collapse text-sm;
-  }
-
-  .job-prose th,
-  .job-prose td {
-    @apply border border-border/60 px-3 py-2 align-top;
-  }
-
-  .job-prose th {
-    color: hsl(var(--foreground)) !important;
-    @apply font-semibold bg-secondary/40;
-  }
-
-  .job-prose img {
-    @apply hidden;
   }
 }

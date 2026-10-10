@@ -8,20 +8,16 @@ export function Logo(props: SVGProps<SVGSVGElement>) {
       fill="none"
       {...props}
     >
+      <circle cx="11" cy="16" r="6.5" stroke="currentColor" strokeWidth="2" />
+      <circle cx="21" cy="16" r="6.5" stroke="currentColor" strokeWidth="2" />
+      <circle cx="11" cy="16" r="2" fill="currentColor" />
+      <circle cx="21" cy="16" r="2" fill="currentColor" />
       <path
-        d="M6 22V10l10-6 10 6v12l-10 6-10-6Z"
+        d="M14.5 11.5h3M14.5 20.5h3"
         stroke="currentColor"
-        strokeWidth="2"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M16 16v12M6 10l10 6 10-6"
-        stroke="currentColor"
-        strokeWidth="2"
+        strokeWidth="1.5"
         strokeLinecap="round"
-        strokeLinejoin="round"
       />
-      <circle cx="16" cy="16" r="2.25" fill="currentColor" />
     </svg>
   );
 }

@@ -7,6 +7,12 @@ const nextConfig: NextConfig = {
       bodySizeLimit: '25mb',
     },
   },
+  // ffmpeg-static resolves its binary path at runtime; keep it out of the bundle
+  // and make sure the binary ships with the standalone output.
+  serverExternalPackages: ['ffmpeg-static'],
+  outputFileTracingIncludes: {
+    '/api/studio/generate': ['./node_modules/ffmpeg-static/ffmpeg'],
+  },
   typescript: {
     ignoreBuildErrors: true,
   },

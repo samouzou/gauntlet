@@ -23,8 +23,8 @@ export function initiateEmailSignIn(authInstance: Auth, email: string, password:
   signInWithEmailAndPassword(authInstance, email, password);
 }
 
-/** Initiate Google Sign-In via popup (non-blocking). */
-export function initiateGoogleSignIn(authInstance: Auth): void {
+/** Google Sign-In via popup. Returns the credential promise so callers can await errors. */
+export function initiateGoogleSignIn(authInstance: Auth) {
   const provider = new GoogleAuthProvider();
-  signInWithPopup(authInstance, provider);
+  return signInWithPopup(authInstance, provider);
 }

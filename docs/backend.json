@@ -1,39 +1,45 @@
 {
   "entities": {
     "User": {
-      "description": "Outpost user profile (seeker or employer).",
+      "description": "Reelwright user profile.",
       "fields": {
         "email": "string",
         "displayName": "string | null",
         "photoURL": "string | null",
         "createdAt": "timestamp",
-        "role": "seeker | employer",
-        "companyName": "string | null (optional)",
-        "credits": "number — posting credits for employers"
+        "credits": "number — generation credits (server-managed)",
+        "total_generations": "number — server-managed counter"
       }
     },
-    "Job": {
-      "description": "Remote job listing (aggregated or employer-posted).",
+    "Character": {
+      "description": "User-owned character reference for Omni continuity.",
       "fields": {
+        "userId": "string",
+        "name": "string",
+        "description": "string",
+        "style": "string",
+        "imageUrl": "string | null — optional uploaded or AI-generated reference still (Firebase Storage download URL)",
+        "source": "string | null — 'generated' when created via Gemini image",
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp"
+      }
+    },
+    "Scene": {
+      "description": "Generated or edited reel (written by Admin SDK).",
+      "fields": {
+        "userId": "string",
         "title": "string",
-        "companyName": "string",
-        "companyLogo": "string | null",
-        "category": "string",
-        "tags": "string[]",
-        "jobType": "full_time | part_time | contract | freelance | internship | other",
-        "location": "string (remote region)",
-        "salary": "string | null",
-        "description": "string (HTML or plain text)",
-        "applyUrl": "string",
-        "source": "remotive | employer",
-        "externalId": "string | null",
-        "postedBy": "string | null (employer uid)",
-        "status": "active | closed",
-        "publishedAt": "timestamp | ISO string"
+        "prompt": "string",
+        "characterIds": "string[]",
+        "interactionId": "string | null",
+        "videoUrl": "string | null",
+        "status": "draft | generating | ready | error",
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp"
       }
     },
     "Product": {
-      "description": "Purchasable posting credit pack.",
+      "description": "Purchasable credit pack.",
       "fields": {
         "name": "string",
         "stripe_price_id": "string",

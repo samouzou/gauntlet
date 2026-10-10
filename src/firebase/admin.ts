@@ -1,14 +1,17 @@
 import { initializeApp, getApps } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
+import { firebaseConfig } from '@/firebase/config';
 
-// In a Google Cloud environment like App Hosting, initializeApp() without
-// arguments automatically discovers the project credentials.
-// This ensures the Admin SDK is initialized only once.
+// Pin Admin to the same Firebase project the web client uses.
+// On App Hosting, ADC still supplies credentials; projectId avoids
+// accidental cross-project NOT_FOUND when discovering the wrong default.
 if (getApps().length === 0) {
-  initializeApp();
+  initializeApp({
+    projectId: firebaseConfig.projectId,
+    storageBucket: firebaseConfig.storageBucket,
+  });
 }
 
-// getFirestore() will use the default (and only) app instance.
 const adminDb = getFirestore();
 
 export { adminDb };

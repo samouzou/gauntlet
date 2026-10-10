@@ -1,24 +1,33 @@
 'use client';
-import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useUser } from "@/firebase";
-import { useRouter } from "next/navigation";
-import { useEffect } from "react";
-import { Logo } from "@/components/logo";
-import { EmailPasswordForm } from "@/components/auth/EmailPasswordForm";
-import { CheckCircle } from "lucide-react";
+
+import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useUser } from '@/firebase';
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
+import { Logo } from '@/components/logo';
+import { EmailPasswordForm } from '@/components/auth/EmailPasswordForm';
+import { CheckCircle } from 'lucide-react';
 
 export default function LoginPage() {
   const { user, isUserLoading } = useUser();
   const router = useRouter();
 
-  useEffect(() => {
-    if (!isUserLoading && user) {
-      router.push('/');
-    }
-  }, [user, isUserLoading, router]);
+  const isUnverifiedPasswordUser =
+    !!user &&
+    !user.emailVerified &&
+    user.providerData.some((p) => p.providerId === 'password');
 
-  if (isUserLoading || user) {
+  useEffect(() => {
+    if (isUserLoading || !user) return;
+    // Keep the form mounted for unverified password users so signup can finish
+    // sending the verification email without a redirect race.
+    if (isUnverifiedPasswordUser) return;
+    router.replace('/studio');
+  }, [user, isUserLoading, router, isUnverifiedPasswordUser]);
+
+  // Only block the UI while loading, or while redirecting verified/Google users.
+  if (isUserLoading || (user && !isUnverifiedPasswordUser)) {
     return (
       <div className="flex h-[80vh] w-full items-center justify-center">
         <p className="text-muted-foreground">Loading...</p>
@@ -30,26 +39,27 @@ export default function LoginPage() {
     <div className="grid md:grid-cols-2 gap-12 items-center min-h-[80vh] py-12 animate-fade-up">
       <div className="flex flex-col items-start text-left">
         <p className="font-display text-5xl sm:text-6xl font-semibold tracking-tight text-primary mb-4">
-          Outpost
+          Reelwright
         </p>
         <h1 className="text-2xl sm:text-3xl font-display font-semibold tracking-tight mb-4">
-          Your next remote role starts here.
+          Come make something.
         </h1>
         <p className="text-lg text-muted-foreground mb-8 max-w-xl">
-          Seekers browse free. Employers buy posting credits to publish openings on the board.
+          Wander the cast and scenes freely. Sign in when you want to shoot — then keep shaping the
+          story in your own words.
         </p>
         <ul className="space-y-4 text-foreground">
           <li className="flex items-center gap-3">
             <CheckCircle className="w-5 h-5 text-primary" />
-            <span>Remote-only roles from around the world.</span>
+            <span>Characters that look like themselves from scene to scene.</span>
           </li>
           <li className="flex items-center gap-3">
             <CheckCircle className="w-5 h-5 text-primary" />
-            <span>Aggregated feed plus employer-posted jobs.</span>
+            <span>Edit by talking — rain heavier, camera closer, mood darker.</span>
           </li>
           <li className="flex items-center gap-3">
             <CheckCircle className="w-5 h-5 text-primary" />
-            <span>Simple credit packs when you&apos;re ready to hire.</span>
+            <span>Your reels stay here, ready for the next cut.</span>
           </li>
         </ul>
       </div>
@@ -61,7 +71,9 @@ export default function LoginPage() {
             </div>
             <CardTitle className="text-2xl font-display">Welcome</CardTitle>
             <CardDescription>
-              Create an account or sign in to save your place.
+              {isUnverifiedPasswordUser
+                ? 'Almost there — check your email to finish signing up.'
+                : 'Create an account to start shooting.'}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">

@@ -1,20 +1,23 @@
-# Outpost
+# Reelwright
 
-Remote-only job search platform.
+A studio for characters, scenes, and stories that continue.
 
-- **Seekers** browse free (aggregated Remotive feed + employer posts)
-- **Employers** buy posting credits and publish roles
-- Auth: Firebase (Google + email/password)
-- Payments: Stripe Checkout credit packs
+- Meet a cast and step into scenes without an account
+- Sign in when you’re ready to shoot
+- Characters that stay themselves across scenes
+- Edit by talking — keep refining the next cut
 
 ## Dev
 
 ```bash
 npm install
+# set GEMINI_API_KEY (or GOOGLE_GENAI_API_KEY), Firebase, and Stripe env vars
 npm run dev
 ```
 
-## Notes
+## Key routes
 
-- Aggregated jobs come from the [Remotive public API](https://remotive.com/api/remote-jobs). Apply links point back to Remotive.
-- Employer jobs live in Firestore `jobs` and cost 1 credit to publish.
+- `/` — landing with cast + scenes
+- `/studio` — create / shoot / edit
+- `/login` — auth
+- Stripe webhook — `/api/stripe/webhook`

@@ -2,16 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { adminDb } from '@/firebase/admin';
 import { FieldValue } from 'firebase-admin/firestore';
-
-function getStripe() {
-  const key = process.env.STRIPE_SECRET_KEY;
-  if (!key) {
-    throw new Error('STRIPE_SECRET_KEY is not configured');
-  }
-  return new Stripe(key, {
-    apiVersion: '2026-01-28.clover',
-  });
-}
+import { CREDIT_PACKS, CREDIT_PURCHASE_PURPOSE, getStripe } from '@/lib/studio/credit-packs';
 
 export async function POST(req: NextRequest) {
   const body = await req.text();
@@ -23,81 +14,63 @@ export async function POST(req: NextRequest) {
   }
 
   let event: Stripe.Event;
-  const stripe = getStripe();
-
   try {
-    event = stripe.webhooks.constructEvent(body, sig, webhookSecret);
+    event = getStripe().webhooks.constructEvent(body, sig, webhookSecret);
   } catch (err: any) {
     console.error(`Webhook signature verification failed.`, err.message);
     return NextResponse.json({ error: `Webhook Error: ${err.message}` }, { status: 400 });
   }
 
-  switch (event.type) {
-    case 'checkout.session.completed': {
-      const session = event.data.object as Stripe.Checkout.Session;
-      const userId = session.metadata?.userId;
+  if (
+    event.type !== 'checkout.session.completed' &&
+    event.type !== 'checkout.session.async_payment_succeeded'
+  ) {
+    return NextResponse.json({ received: true });
+  }
 
-      if (!userId) {
-        console.error('Webhook Error: No userId in checkout session metadata');
-        break;
-      }
+  const session = event.data.object as Stripe.Checkout.Session;
+  // The Stripe account is shared with other Verza apps; only act on our own sessions.
+  if (session.mode !== 'payment' || session.metadata?.purpose !== CREDIT_PURCHASE_PURPOSE) {
+    return NextResponse.json({ received: true });
+  }
+  if (session.payment_status !== 'paid') {
+    return NextResponse.json({ received: true });
+  }
 
-      try {
-        const sessionWithLineItems = await stripe.checkout.sessions.retrieve(session.id, {
-          expand: ['line_items'],
-        });
+  const userId = String(session.metadata?.userId || '');
+  const credits = Number(session.metadata?.credits);
+  if (!userId || !CREDIT_PACKS[credits]) {
+    console.error('[stripe webhook] credit purchase without a user or pack', { sessionId: session.id });
+    return NextResponse.json({ received: true });
+  }
 
-        const priceId = sessionWithLineItems.line_items?.data[0]?.price?.id;
-
-        if (!priceId) {
-          console.error(`Webhook Error: Could not find price ID for session ${session.id}`);
-          return NextResponse.json(
-            { error: 'Could not determine purchased product.' },
-            { status: 400 }
-          );
-        }
-
-        const productsRef = adminDb.collection('products');
-        const productQuery = await productsRef
-          .where('stripe_price_id', '==', priceId)
-          .limit(1)
-          .get();
-
-        if (productQuery.empty) {
-          console.error(
-            `Webhook Error: No product found in Firestore with stripe_price_id ${priceId}`
-          );
-          return NextResponse.json(
-            { error: 'Purchased product not found in our system.' },
-            { status: 400 }
-          );
-        }
-
-        const productData = productQuery.docs[0].data();
-        const creditAmount = productData.credit_amount;
-
-        if (typeof creditAmount !== 'number' || creditAmount <= 0) {
-          console.error(`Webhook Error: Invalid credit_amount for product with price_id ${priceId}`);
-          return NextResponse.json({ error: 'Invalid product configuration.' }, { status: 500 });
-        }
-
-        const userRef = adminDb.collection('users').doc(userId);
-        await userRef.update({
-          credits: FieldValue.increment(creditAmount),
-          role: 'employer',
-        });
-        console.log(`Successfully added ${creditAmount} posting credits to user ${userId}`);
-      } catch (error) {
-        console.error('Failed to update user credits:', error);
-        return NextResponse.json(
-          { error: 'Failed to update user credits in database.' },
-          { status: 500 }
-        );
-      }
-      break;
-    }
-    default:
-      console.log(`Unhandled event type ${event.type}`);
+  try {
+    const userRef = adminDb.collection('users').doc(userId);
+    const grantRef = adminDb.collection('credit_purchases').doc(session.id);
+    const granted = await adminDb.runTransaction(async (tx) => {
+      if ((await tx.get(grantRef)).exists) return false;
+      // set+merge so a missing profile doesn't fail the grant.
+      tx.set(
+        userRef,
+        { credits: FieldValue.increment(credits), updatedAt: FieldValue.serverTimestamp() },
+        { merge: true }
+      );
+      tx.set(grantRef, {
+        userId,
+        credits,
+        amountCents: session.amount_total ?? null,
+        paymentIntentId:
+          typeof session.payment_intent === 'string'
+            ? session.payment_intent
+            : session.payment_intent?.id ?? null,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      return true;
+    });
+    console.info('[stripe webhook] credit pack', { userId, credits, sessionId: session.id, granted });
+  } catch (error) {
+    console.error('Failed to update user credits:', error);
+    return NextResponse.json({ error: 'Failed to update user credits.' }, { status: 500 });
   }
 
   return NextResponse.json({ received: true });
