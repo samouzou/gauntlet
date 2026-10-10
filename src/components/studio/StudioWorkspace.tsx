@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useDropzone } from 'react-dropzone';
 import { useFirebase, useCollection, useMemoFirebase } from '@/firebase';
@@ -157,7 +157,11 @@ export function StudioWorkspace() {
     return [...SAMPLE_CHARACTERS, ...mine];
   }, [myCharacters]);
 
+  // Scene the user just closed with "New scene"; the URL still names it until router.replace lands.
+  const dismissedSceneRef = useRef<string | null>(null);
+
   const loadSceneIntoWorkspace = useCallback((scene: Scene) => {
+    dismissedSceneRef.current = null;
     setSceneId(scene.id);
     setPrompt(scene.prompt || '');
     setTitle(scene.title || '');
@@ -173,6 +177,7 @@ export function StudioWorkspace() {
   }, []);
 
   const startNewScene = useCallback(() => {
+    dismissedSceneRef.current = searchParams.get('scene');
     setSceneId(null);
     setPrompt('');
     setTitle('');
@@ -185,7 +190,7 @@ export function StudioWorkspace() {
     setEditInstruction('');
     setSelectedCharacterIds([]);
     router.replace('/studio');
-  }, [router]);
+  }, [router, searchParams]);
 
   // Prefill from landing deep links / history reopen
   useEffect(() => {
@@ -210,7 +215,7 @@ export function StudioWorkspace() {
 
   useEffect(() => {
     const sceneIdParam = searchParams.get('scene');
-    if (!sceneIdParam) return;
+    if (!sceneIdParam || sceneIdParam === dismissedSceneRef.current) return;
 
     const sample = getSampleScene(sceneIdParam);
     if (sample) {
