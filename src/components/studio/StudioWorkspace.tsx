@@ -14,12 +14,10 @@ import {
   SCENE_SOURCE_MAX_BYTES,
   uploadSceneSource,
 } from '@/lib/studio/upload-scene-source';
-import {
-  SAMPLE_CHARACTERS,
-  SAMPLE_SCENES,
-  getSampleCharacter,
-  getSampleScene,
-} from '@/lib/studio/samples';
+import { SAMPLE_CHARACTERS, getSampleCharacter } from '@/lib/studio/samples';
+import { hasTemplatePlaceholders, type AdTemplate } from '@/lib/studio/ad-templates';
+import type { MarketingExample } from '@/components/landing/MarketingFeed';
+import { AdTemplates } from '@/components/studio/AdTemplates';
 import { CharacterCard } from '@/components/studio/CharacterCard';
 import { SceneHistory } from '@/components/studio/SceneHistory';
 import { ImageHistory } from '@/components/studio/ImageHistory';
@@ -95,7 +93,7 @@ export function StudioWorkspace() {
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [sourceVideoUrl, setSourceVideoUrl] = useState<string | null>(null);
-  const [aspectRatio, setAspectRatio] = useState<VideoAspectRatio>('16:9');
+  const [aspectRatio, setAspectRatio] = useState<VideoAspectRatio>('9:16');
   const [imageAspectRatio, setImageAspectRatio] = useState<ImageAspectRatio>('1:1');
   const [imageId, setImageId] = useState<string | null>(null);
   const [stillUrl, setStillUrl] = useState<string | null>(null);
@@ -115,7 +113,7 @@ export function StudioWorkspace() {
   // New character form — asset is an optional local file upload
   const [charName, setCharName] = useState('');
   const [charDescription, setCharDescription] = useState('');
-  const [charStyle, setCharStyle] = useState('Cinematic, photoreal');
+  const [charStyle, setCharStyle] = useState('Photoreal, natural light');
   const [charAssetFile, setCharAssetFile] = useState<File | null>(null);
   const [charAssetPreview, setCharAssetPreview] = useState<string | null>(null);
 
@@ -186,7 +184,7 @@ export function StudioWorkspace() {
     setInteractionId(null);
     setPreviewImage(null);
     setSourceVideoUrl(null);
-    setAspectRatio('16:9');
+    setAspectRatio('9:16');
     setEditInstruction('');
     setSelectedCharacterIds([]);
     router.replace('/studio');
@@ -202,28 +200,22 @@ export function StudioWorkspace() {
 
     setSelectedCharacterIds((prev) => (prev.length ? prev : [character.id]));
     setPreviewImage((prev) => prev || character.imageUrl || null);
-    setPrompt((prev) => prev || `${character.name} in a new scene — ${character.description}`);
-    setTitle((prev) => prev || `${character.name} scene`);
+    setPrompt(
+      (prev) => prev || `${character.name} talks to the camera about [your product or offer].`
+    );
+    setTitle((prev) => prev || `${character.name} ad`);
   }, [searchParams, characters]);
 
   useEffect(() => {
     const promptParam = searchParams.get('prompt');
     if (!promptParam) return;
     setPrompt((prev) => prev || promptParam.slice(0, 4000));
-    if (searchParams.get('ratio') === '9:16') setAspectRatio('9:16');
+    setAspectRatio(searchParams.get('ratio') === '16:9' ? '16:9' : '9:16');
   }, [searchParams]);
 
   useEffect(() => {
     const sceneIdParam = searchParams.get('scene');
     if (!sceneIdParam || sceneIdParam === dismissedSceneRef.current) return;
-
-    const sample = getSampleScene(sceneIdParam);
-    if (sample) {
-      if (sceneId !== sample.id) {
-        loadSceneIntoWorkspace({ ...sample, videoUrl: null, interactionId: null });
-      }
-      return;
-    }
 
     const owned = (myScenes || []).find((s) => s.id === sceneIdParam);
     if (!owned) return;
@@ -291,16 +283,16 @@ export function StudioWorkspace() {
             file,
           });
           setSourceVideoUrl(uploaded.url);
-          // Show the source until Arc returns a reshaped reel.
+          // Show the source until the remix comes back.
           if (!videoUrl) setPreviewImage(null);
           toast({
-            title: 'Clip ready',
-            description: 'Tell Arc what to change, then apply the cut.',
+            title: 'Footage ready',
+            description: 'Say what to change, then remix it.',
           });
         } catch (err: any) {
           toast({
             variant: 'destructive',
-            title: 'Couldn’t add that clip',
+            title: 'Couldn’t add that footage',
             description: err?.message || 'Try a short mp4 or webm under 10 seconds.',
           });
         } finally {
@@ -375,16 +367,16 @@ export function StudioWorkspace() {
           setSourceStillUrl(url);
           if (!stillUrl) setPreviewImage(url);
           toast({
-            title: 'Still ready',
+            title: 'Photo ready',
             description:
               studioPanel === 'animate'
-                ? 'Describe the motion, then animate.'
-                : 'Describe the restyle, then generate.',
+                ? 'Describe the motion, then generate the video.'
+                : 'Describe the change, then remix it.',
           });
         } catch (err: any) {
           toast({
             variant: 'destructive',
-            title: 'Couldn’t add that still',
+            title: 'Couldn’t add that photo',
             description: err?.message || 'Try a JPEG or PNG under 8MB.',
           });
         } finally {
@@ -439,6 +431,44 @@ export function StudioWorkspace() {
     setImageAspectRatio('1:1');
   }, []);
 
+  const blockOnPlaceholders = (text: string) => {
+    if (!hasTemplatePlaceholders(text)) return false;
+    toast({
+      variant: 'destructive',
+      title: 'Fill in the template first',
+      description: 'Replace the [bracketed] parts with details about your business.',
+    });
+    return true;
+  };
+
+  const applyTemplate = (template: AdTemplate) => {
+    if (template.panel === 'image') {
+      startNewStill();
+      if (template.imageAspectRatio) setImageAspectRatio(template.imageAspectRatio);
+    } else if (template.panel === 'video') {
+      if (sceneId || videoUrl) startNewScene();
+    } else {
+      setVideoUrl(null);
+      setSceneId(null);
+      setInteractionId(null);
+      setDurationSeconds(null);
+    }
+    setStudioPanel(template.panel);
+    setTitle(template.title);
+    setPrompt(template.prompt);
+    setAspectRatio(template.aspectRatio);
+    if (template.length) setTargetLength(template.length);
+  };
+
+  const applyExample = (example: MarketingExample) => {
+    if (sceneId || videoUrl) startNewScene();
+    setStudioPanel('video');
+    setTitle(`${example.business} ad`);
+    setPrompt(example.prompt);
+    setAspectRatio('9:16');
+    setTargetLength(10);
+  };
+
   const runGenerateImage = (mode: 'text_to_image' | 'image_to_image') => {
     const cost = CREDIT_COSTS[mode];
     if (!requireAuthOrCredits(cost)) return;
@@ -450,17 +480,18 @@ export function StudioWorkspace() {
         title: 'Tell us a bit more',
         description:
           mode === 'image_to_image'
-            ? 'Describe the look, mood, or change you want.'
-            : 'A sentence or two about subject, light, and mood goes a long way.',
+            ? 'Describe the look, setting, or change you want.'
+            : 'A sentence or two about your product, the setting, and the mood goes a long way.',
       });
       return;
     }
+    if (blockOnPlaceholders(finalPrompt)) return;
 
     if (mode === 'image_to_image' && !sourceStillUrl && !stillUrl) {
       toast({
         variant: 'destructive',
-        title: 'Add a still first',
-        description: 'Drop a source image, then describe the restyle.',
+        title: 'Add a photo first',
+        description: 'Drop a product or brand photo, then describe the change.',
       });
       return;
     }
@@ -487,14 +518,14 @@ export function StudioWorkspace() {
         try {
           result = (await response.json()) as GenerateImageResult;
         } catch {
-          throw new Error('That still didn’t come through. Try again.');
+          throw new Error('That image didn’t come through. Try again.');
         }
 
         if (!result.ok) {
           toast({
             variant: 'destructive',
-            title: 'Couldn’t finish the still',
-            description: result.error || 'That still didn’t come through. Try again.',
+            title: 'Couldn’t finish the image',
+            description: result.error || 'That image didn’t come through. Try again.',
           });
           return;
         }
@@ -503,14 +534,14 @@ export function StudioWorkspace() {
         setStillUrl(result.imageUrl);
         setPreviewImage(result.imageUrl);
         toast({
-          title: mode === 'image_to_image' ? 'Restyle ready' : 'Still ready',
-          description: 'Open Animate to bring it to life, or keep exploring.',
+          title: mode === 'image_to_image' ? 'Remix ready' : 'Image ready',
+          description: 'Download it, or turn it into a video ad.',
         });
       } catch (err: any) {
         toast({
           variant: 'destructive',
-          title: 'Couldn’t finish the still',
-          description: err?.message || 'That still didn’t come through. Try again.',
+          title: 'Couldn’t finish the image',
+          description: err?.message || 'That image didn’t come through. Try again.',
         });
       } finally {
         setPendingKind(null);
@@ -529,7 +560,7 @@ export function StudioWorkspace() {
     } catch {
       throw new Error(
         response.ok
-          ? 'That scene didn’t come through. Try again.'
+          ? 'That ad didn’t come through. Try again.'
           : 'That took too long. Give it another try in a moment.'
       );
     }
@@ -576,7 +607,7 @@ export function StudioWorkspace() {
         if (!result.ok) {
           toast({
             variant: 'destructive',
-            title: 'Couldn’t extend the scene',
+            title: 'Couldn’t extend the ad',
             description: result.error || 'That part didn’t come through. Try again.',
           });
           return;
@@ -584,13 +615,13 @@ export function StudioWorkspace() {
         applySceneResult(result);
         setEditInstruction('');
         toast({
-          title: `Scene is now ${result.durationSeconds ?? sceneLength + SEGMENT_SECONDS}s`,
-          description: 'Keep extending, or download the cut.',
+          title: `Ad is now ${result.durationSeconds ?? sceneLength + SEGMENT_SECONDS}s`,
+          description: 'Keep extending, or download it.',
         });
       } catch (err: any) {
         toast({
           variant: 'destructive',
-          title: 'Couldn’t extend the scene',
+          title: 'Couldn’t extend the ad',
           description: err?.message || 'That part didn’t come through. Try again.',
         });
       } finally {
@@ -625,19 +656,20 @@ export function StudioWorkspace() {
         title: 'Tell us a bit more',
         description:
           mode === 'edit_upload'
-            ? 'Describe the change you want — a donkey beside them, heavier rain, a closer push-in…'
+            ? 'Describe the change you want — a new background, brighter colors, a closer shot…'
             : isAnimate
-              ? 'Describe the motion, camera, and mood for this still.'
-              : 'A sentence or two about the shot, motion, and mood goes a long way.',
+              ? 'Describe the motion, camera, and mood for this photo.'
+              : 'A sentence or two about your product, the shot, and the mood goes a long way.',
       });
       return;
     }
+    if (blockOnPlaceholders(finalPrompt)) return;
 
     if (isAnimate && !sourceStillUrl && !stillUrl) {
       toast({
         variant: 'destructive',
-        title: 'Add a still first',
-        description: 'Upload an image or generate one in Image / Restyle, then animate it.',
+        title: 'Add a photo first',
+        description: 'Upload a product or brand photo, or create one in Image ad, then turn it into video.',
       });
       return;
     }
@@ -645,8 +677,8 @@ export function StudioWorkspace() {
     if (mode === 'edit_upload' && !sourceVideoUrl && !interactionId) {
       toast({
         variant: 'destructive',
-        title: 'Add a clip first',
-        description: 'Drop a short clip above, then tell Arc how to reshape it.',
+        title: 'Add footage first',
+        description: 'Drop a short clip above, then say how to remix it.',
       });
       return;
     }
@@ -715,8 +747,8 @@ export function StudioWorkspace() {
         if (!result.ok) {
           toast({
             variant: 'destructive',
-            title: 'Couldn’t finish the scene',
-            description: result.error || 'That scene didn’t come through. Try again.',
+            title: 'Couldn’t finish the ad',
+            description: result.error || 'That ad didn’t come through. Try again.',
           });
           return;
         }
@@ -736,7 +768,7 @@ export function StudioWorkspace() {
             toast({
               variant: 'destructive',
               title: `Stopped at ${(part - 1) * SEGMENT_SECONDS}s`,
-              description: `${next.error || 'The next part didn’t come through.'} Your scene so far is saved; use Extend to keep going.`,
+              description: `${next.error || 'The next part didn’t come through.'} Your ad so far is saved; use Extend to keep going.`,
             });
             return;
           }
@@ -746,11 +778,9 @@ export function StudioWorkspace() {
         toast({
           title:
             resolvedMode === 'edit' || resolvedMode === 'edit_upload'
-              ? 'Cut ready'
-              : isAnimate
-                ? 'Animation ready'
-                : 'Scene ready',
-          description: 'Keep talking to shape what happens next.',
+              ? 'Remix ready'
+              : 'Ad ready',
+          description: 'Download it, or keep refining below.',
         });
         if (resolvedMode === 'edit') setEditInstruction('');
         if (isAnimate) setStudioPanel('video');
@@ -758,11 +788,11 @@ export function StudioWorkspace() {
         const message = String(err?.message || '');
         toast({
           variant: 'destructive',
-          title: 'Couldn’t finish the scene',
+          title: 'Couldn’t finish the ad',
           description:
             message.includes('unexpected response') || message.includes('Failed to fetch')
               ? 'That took too long. Give it another try in a moment.'
-              : message || 'That scene didn’t come through. Try again.',
+              : message || 'That ad didn’t come through. Try again.',
         });
       } finally {
         setPendingKind(null);
@@ -794,8 +824,37 @@ export function StudioWorkspace() {
     </div>
   );
 
+  const formatPicker = (
+    <div className="space-y-2">
+      <Label>Format</Label>
+      <div className="grid grid-cols-2 gap-2">
+        {(
+          [
+            ['9:16', 'Vertical', 'Reels, TikTok, Shorts', RectangleVertical],
+            ['16:9', 'Widescreen', 'YouTube, web, TV', RectangleHorizontal],
+          ] as const
+        ).map(([value, label, hint, Icon]) => (
+          <Button
+            key={value}
+            type="button"
+            variant={aspectRatio === value ? 'default' : 'outline'}
+            className="h-auto flex-col gap-0.5 py-2"
+            disabled={isPending}
+            onClick={() => setAspectRatio(value)}
+          >
+            <span className="flex items-center">
+              <Icon className="mr-2 h-4 w-4" />
+              {label}
+            </span>
+            <span className="text-[11px] font-normal opacity-75">{hint}</span>
+          </Button>
+        ))}
+      </div>
+    </div>
+  );
+
   const pendingVideoLabel = chainProgress
-    ? `Shooting part ${chainProgress.part} of ${chainProgress.total}…`
+    ? `Generating part ${chainProgress.part} of ${chainProgress.total}…`
     : pendingKind === 'extend'
       ? 'Adding 10 more seconds…'
       : null;
@@ -813,7 +872,7 @@ export function StudioWorkspace() {
       toast({
         variant: 'destructive',
         title: 'Add name and description',
-        description: 'A clear look and temperament helps the portrait land.',
+        description: 'A clear look and personality helps the portrait land.',
       });
       return;
     }
@@ -830,7 +889,7 @@ export function StudioWorkspace() {
         if (!result.ok) {
           toast({
             variant: 'destructive',
-            title: 'Character generation failed',
+            title: 'Couldn’t create that presenter',
             description: result.error,
           });
           return;
@@ -841,14 +900,14 @@ export function StudioWorkspace() {
         resetCharacterForm();
         setCastTab('cast');
         toast({
-          title: `${result.name} joined the cast`,
-          description: 'Select them for your next scene.',
+          title: `${result.name} is ready`,
+          description: 'Select them for your next ad.',
         });
       } catch (err: any) {
         toast({
           variant: 'destructive',
-          title: 'Couldn’t create that character',
-          description: err.message || 'Try another description, or upload a still.',
+          title: 'Couldn’t create that presenter',
+          description: err.message || 'Try another description, or upload a photo.',
         });
       }
     });
@@ -863,7 +922,7 @@ export function StudioWorkspace() {
       toast({
         variant: 'destructive',
         title: 'Add name and description',
-        description: 'A short character bible is enough — the still is optional.',
+        description: 'A short description is enough — the photo is optional.',
       });
       return;
     }
@@ -887,10 +946,10 @@ export function StudioWorkspace() {
           imageUrl,
         });
         toast({
-          title: 'Character saved',
+          title: 'Presenter saved',
           description: imageUrl
-            ? 'Their still is ready for the next scene.'
-            : 'Saved from the description — you can add a portrait later.',
+            ? 'Their photo is ready for your next ad.'
+            : 'Saved from the description — you can add a photo later.',
         });
         setSelectedCharacterIds((prev) => [...prev, characterId].slice(0, 3));
         if (imageUrl) setPreviewImage(imageUrl);
@@ -899,7 +958,7 @@ export function StudioWorkspace() {
       } catch (err: any) {
         toast({
           variant: 'destructive',
-          title: 'Could not save character',
+          title: 'Could not save presenter',
           description: err.message || 'Upload failed — try another image or save without one.',
         });
       }
@@ -928,29 +987,30 @@ export function StudioWorkspace() {
 
   const panelCopy: Record<StudioPanel, { title: string; subtitle: string }> = {
     video: {
-      title: 'Describe it. Post it.',
+      title: 'Create a video ad.',
       subtitle:
-        'Tell us about your promo — the dish, the service, the vibe — and get a 10 to 40 second video for Reels, TikTok and Shorts.',
+        'Start from a template or describe your product and offer. Get a 10 to 40 second ad for Reels, TikTok, Shorts and YouTube.',
     },
     image: {
-      title: 'Still from words.',
-      subtitle: 'Describe a frame — Arc paints the still.',
+      title: 'Create an image ad.',
+      subtitle: 'Describe the shot and get a static creative for feeds, stories and display.',
     },
     restyle: {
-      title: 'Same subject. New look.',
-      subtitle: 'Drop a still and tell Arc how to reshape it.',
+      title: 'Remix an image.',
+      subtitle: 'Drop in a product photo or past creative and say how to change it.',
     },
     animate: {
-      title: 'Still to motion.',
-      subtitle: 'Hand Arc an image and describe how it should move.',
+      title: 'Turn a photo into a video ad.',
+      subtitle: 'Upload a product or brand photo and describe how it should move.',
     },
     cast: {
-      title: 'Build your cast.',
-      subtitle: 'Portraits and notes that keep faces consistent across scenes.',
+      title: 'Your presenters.',
+      subtitle:
+        'Save the faces of your brand — you, your team, or an AI spokesperson — and reuse them in every ad.',
     },
     reels: {
-      title: 'Your reels & stills.',
-      subtitle: 'Pick up where you left off.',
+      title: 'Your ads.',
+      subtitle: 'Everything you’ve made, ready to download or keep refining.',
     },
   };
 
@@ -1009,8 +1069,8 @@ export function StudioWorkspace() {
   const castPanel = (
     <Tabs value={castTab} onValueChange={(v) => setCastTab(v as 'cast' | 'create')}>
       <TabsList className="grid w-full grid-cols-2">
-        <TabsTrigger value="cast">Cast</TabsTrigger>
-        <TabsTrigger value="create">New character</TabsTrigger>
+        <TabsTrigger value="cast">Presenters</TabsTrigger>
+        <TabsTrigger value="create">New presenter</TabsTrigger>
       </TabsList>
       <TabsContent value="cast" className="mt-4">
         <div className="grid grid-cols-2 gap-3 max-h-[520px] overflow-y-auto pr-1">
@@ -1025,7 +1085,7 @@ export function StudioWorkspace() {
           ))}
         </div>
         <p className="text-xs text-muted-foreground mt-3">
-          Up to three in a scene. A still helps them stay recognizable; a clear description works
+          Optional. Up to three per ad. A photo keeps them recognizable; a clear description works
           too.
         </p>
       </TabsContent>
@@ -1034,11 +1094,11 @@ export function StudioWorkspace() {
           <CardHeader className="pb-3">
             <CardTitle className="font-display text-lg flex items-center gap-2">
               <UserRoundPlus className="h-4 w-4 text-primary" />
-              Create character
+              Add a presenter
             </CardTitle>
             <CardDescription>
-              Sketch someone new with a portrait, or bring your own still. They&apos;ll be ready
-              for the next scene.
+              Generate an AI spokesperson from a description, or upload a photo of you or your
+              team.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -1047,7 +1107,7 @@ export function StudioWorkspace() {
               <Input
                 value={charName}
                 onChange={(e) => setCharName(e.target.value)}
-                placeholder="Mira Vale"
+                placeholder="Maya"
               />
             </div>
             <div className="space-y-2">
@@ -1056,7 +1116,7 @@ export function StudioWorkspace() {
                 rows={3}
                 value={charDescription}
                 onChange={(e) => setCharDescription(e.target.value)}
-                placeholder="Look, wardrobe, temperament…"
+                placeholder="Age, look, wardrobe, how they talk…"
               />
             </div>
             <div className="space-y-2">
@@ -1064,11 +1124,11 @@ export function StudioWorkspace() {
               <Input
                 value={charStyle}
                 onChange={(e) => setCharStyle(e.target.value)}
-                placeholder="Cinematic neo-noir"
+                placeholder="Selfie-style phone video"
               />
             </div>
             <div className="space-y-2">
-              <Label>Portrait still (optional)</Label>
+              <Label>Photo (optional)</Label>
               {charAssetPreview ? (
                 <div className="relative overflow-hidden rounded-xl border border-border/70">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -1099,7 +1159,7 @@ export function StudioWorkspace() {
                   <input {...getInputProps()} />
                   <ImagePlus className="h-5 w-5 text-primary" />
                   <p className="text-sm text-foreground/90">
-                    {isDragActive ? 'Drop it here' : 'Or drop in your own portrait'}
+                    {isDragActive ? 'Drop it here' : 'Or drop in a photo of you or your team'}
                   </p>
                   <p className="text-xs text-muted-foreground">JPEG, PNG, or WebP · under 8MB</p>
                 </div>
@@ -1129,13 +1189,13 @@ export function StudioWorkspace() {
 
   const stillSourceField = (
     <div className="space-y-2">
-      <Label>Source still</Label>
+      <Label>Product or brand photo</Label>
       {sourceStillUrl || stillUrl ? (
         <div className="flex items-center justify-between gap-3 rounded-xl border border-border/70 bg-secondary/20 px-3 py-2">
           <div className="flex items-center gap-2 text-sm min-w-0">
             <ImagePlus className="h-4 w-4 text-primary shrink-0" />
             <span className="truncate text-foreground/90">
-              {sourceStillUrl ? 'Source attached' : 'Using latest still'}
+              {sourceStillUrl ? 'Photo attached' : 'Using your latest image'}
             </span>
           </div>
           <Button
@@ -1164,7 +1224,7 @@ export function StudioWorkspace() {
             <ImagePlus className="h-5 w-5 text-primary" />
           )}
           <p className="text-sm text-foreground/90">
-            {isStillDragActive ? 'Drop the still here' : 'Drop a still to start'}
+            {isStillDragActive ? 'Drop the photo here' : 'Drop a product or brand photo'}
           </p>
           <p className="text-xs text-muted-foreground">JPEG, PNG, or WebP · under 8MB</p>
         </div>
@@ -1177,7 +1237,7 @@ export function StudioWorkspace() {
           className="w-full"
           onClick={() => setSourceStillUrl(stillUrl)}
         >
-          Use current still as source
+          Use your current image
         </Button>
       ) : null}
     </div>
@@ -1199,13 +1259,13 @@ export function StudioWorkspace() {
           {(studioPanel === 'video' || studioPanel === 'animate') && (
             <Button type="button" variant="outline" size="sm" onClick={startNewScene}>
               <Plus className="mr-1.5 h-4 w-4" />
-              New scene
+              New ad
             </Button>
           )}
           {(studioPanel === 'image' || studioPanel === 'restyle') && (
             <Button type="button" variant="outline" size="sm" onClick={startNewStill}>
               <Plus className="mr-1.5 h-4 w-4" />
-              New still
+              New image
             </Button>
           )}
           <div className="flex items-center gap-2 text-sm border border-border/70 rounded-md px-3 py-2 bg-card/50">
@@ -1231,14 +1291,14 @@ export function StudioWorkspace() {
                 <CardHeader className="pb-3">
                   <CardTitle className="font-display flex items-center gap-2">
                     <Clapperboard className="h-5 w-5 text-primary" />
-                    Scene stage
+                    Video ad
                   </CardTitle>
                   <CardDescription>
                     {sourceVideoUrl && !interactionId
-                      ? `Hand ${BRAND.aiName} a clip and say what to change.`
+                      ? 'Say what to change in your footage.'
                       : selectedCharacters.length
-                        ? `With ${selectedCharacters.map((c) => c.name).join(', ')}`
-                        : 'Choose who belongs in this scene — or drop in a clip to reshape.'}
+                        ? `Featuring ${selectedCharacters.map((c) => c.name).join(', ')}`
+                        : 'Describe your ad, or start from a template.'}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -1269,7 +1329,7 @@ export function StudioWorkspace() {
                       />
                     ) : (
                       <div className="h-full w-full flex items-center justify-center text-muted-foreground text-sm px-4 text-center">
-                        Your scene will appear here
+                        Your ad will appear here
                       </div>
                     )}
                     {isPending && (
@@ -1279,8 +1339,8 @@ export function StudioWorkspace() {
                           {pendingVideoLabel ??
                             (pendingKind === 'edit_upload' ||
                             (pendingKind === 'edit' && sourceVideoUrl)
-                              ? `${BRAND.aiName} is reshaping your clip…`
-                              : 'Creating your scene…')}
+                              ? 'Remixing your footage…'
+                              : 'Creating your ad…')}
                         </p>
                         {(chainProgress || pendingKind === 'extend') && (
                           <p className="text-xs text-white/70">
@@ -1293,49 +1353,25 @@ export function StudioWorkspace() {
 
                   {videoUrl && !isPending && (
                     <Button variant="outline" className="w-full" asChild>
-                      <a href={downloadHref(videoUrl, title || 'reelwright-scene')} download>
+                      <a href={downloadHref(videoUrl, title || 'reelwright-ad')} download>
                         <Download className="mr-2 h-4 w-4" />
-                        Download clip
+                        Download ad
                       </a>
                     </Button>
                   )}
 
-                  <div className="space-y-2">
-                    <Label>Format</Label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <Button
-                        type="button"
-                        variant={aspectRatio === '16:9' ? 'default' : 'outline'}
-                        className="justify-center"
-                        disabled={isPending}
-                        onClick={() => setAspectRatio('16:9')}
-                      >
-                        <RectangleHorizontal className="mr-2 h-4 w-4" />
-                        Landscape
-                      </Button>
-                      <Button
-                        type="button"
-                        variant={aspectRatio === '9:16' ? 'default' : 'outline'}
-                        className="justify-center"
-                        disabled={isPending}
-                        onClick={() => setAspectRatio('9:16')}
-                      >
-                        <RectangleVertical className="mr-2 h-4 w-4" />
-                        Portrait
-                      </Button>
-                    </div>
-                  </div>
+                  {formatPicker}
 
                   {lengthPicker}
 
                   {!interactionId && (
                     <div className="space-y-2">
-                      <Label>Source clip (optional)</Label>
+                      <Label>Remix your own footage (optional)</Label>
                       {sourceVideoUrl ? (
                         <div className="flex items-center justify-between gap-3 rounded-xl border border-border/70 bg-secondary/20 px-3 py-2">
                           <div className="flex items-center gap-2 text-sm min-w-0">
                             <Film className="h-4 w-4 text-primary shrink-0" />
-                            <span className="truncate text-foreground/90">Clip attached</span>
+                            <span className="truncate text-foreground/90">Footage attached</span>
                           </div>
                           <Button
                             type="button"
@@ -1364,8 +1400,8 @@ export function StudioWorkspace() {
                           )}
                           <p className="text-sm text-foreground/90">
                             {isSceneSourceDragActive
-                              ? 'Drop the clip here'
-                              : 'Drop a short clip to reshape'}
+                              ? 'Drop the footage here'
+                              : 'Drop a clip you already have'}
                           </p>
                           <p className="text-xs text-muted-foreground">
                             mp4 / webm · about 10 seconds · under 200MB
@@ -1376,18 +1412,18 @@ export function StudioWorkspace() {
                   )}
 
                   <div className="space-y-2">
-                    <Label htmlFor="title">Scene title</Label>
+                    <Label htmlFor="title">Ad name</Label>
                     <Input
                       id="title"
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
-                      placeholder="Rooftop Signal"
+                      placeholder="Summer sale reel"
                     />
                   </div>
 
                   <div className="space-y-2">
                     <Label htmlFor="prompt">
-                      {sourceVideoUrl && !interactionId ? 'What should change' : 'What happens'}
+                      {sourceVideoUrl && !interactionId ? 'What should change' : 'Describe your ad'}
                     </Label>
                     <Textarea
                       id="prompt"
@@ -1396,8 +1432,8 @@ export function StudioWorkspace() {
                       onChange={(e) => setPrompt(e.target.value)}
                       placeholder={
                         sourceVideoUrl && !interactionId
-                          ? 'Add a donkey that stays beside them…'
-                          : 'A slow push-in on Mira as neon rain hits the rooftop…'
+                          ? 'Swap the background for a beach at sunset, keep the product the same…'
+                          : 'Vertical ad for our cold brew: a slow pour over ice, condensation on the can, friends sharing it on a sunny patio. Upbeat music. No text on screen.'
                       }
                     />
                   </div>
@@ -1415,7 +1451,7 @@ export function StudioWorkspace() {
                         ) : (
                           <Sparkles className="mr-2 h-4 w-4" />
                         )}
-                        Apply cut · {formatCredits(videoLengthCost(targetLength))}
+                        Remix footage · {formatCredits(videoLengthCost(targetLength))}
                       </Button>
                       <Button
                         variant="outline"
@@ -1423,7 +1459,7 @@ export function StudioWorkspace() {
                         disabled={isPending || isUploadingSource}
                         onClick={() => runGenerate('generate')}
                       >
-                        Shoot a new scene instead · {formatCredits(videoLengthCost(targetLength))}
+                        Generate a new ad instead · {formatCredits(videoLengthCost(targetLength))}
                       </Button>
                     </>
                   ) : (
@@ -1438,17 +1474,17 @@ export function StudioWorkspace() {
                       ) : (
                         <Sparkles className="mr-2 h-4 w-4" />
                       )}
-                      Shoot {targetLength}s scene · {formatCredits(videoLengthCost(targetLength))}
+                      Generate {targetLength}s ad · {formatCredits(videoLengthCost(targetLength))}
                     </Button>
                   )}
 
                   {(interactionId || canExtend) && (
                     <div className="space-y-2 pt-2 border-t border-border/60">
                       <div className="flex items-center justify-between">
-                        <Label htmlFor="edit">Keep going</Label>
+                        <Label htmlFor="edit">Refine or extend</Label>
                         {videoUrl && sceneLength > 0 && (
                           <span className="text-xs text-muted-foreground">
-                            Scene is {sceneLength}s
+                            Ad is {sceneLength}s
                           </span>
                         )}
                       </div>
@@ -1459,7 +1495,7 @@ export function StudioWorkspace() {
                         onChange={(e) => setEditInstruction(e.target.value)}
                         placeholder={
                           canEditCut
-                            ? 'Make the rain heavier, or say what happens next…'
+                            ? 'Make it brighter, add a second customer, or say what happens next…'
                             : 'What happens next…'
                         }
                       />
@@ -1473,7 +1509,7 @@ export function StudioWorkspace() {
                             {isPending && pendingKind === 'edit' ? (
                               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                             ) : null}
-                            Apply cut · {creditLabel('video_edit')}
+                            Apply change · {creditLabel('video_edit')}
                           </Button>
                         )}
                         {canExtend && (
@@ -1489,10 +1525,10 @@ export function StudioWorkspace() {
                       </div>
                       <p className="text-xs text-muted-foreground">
                         {canEditCut
-                          ? 'Apply cut reshapes this take. Extend continues it for 10 more seconds, up to 40s.'
+                          ? 'Apply change reworks this take. Extend adds 10 more seconds, up to 40s.'
                           : canExtend
-                            ? 'Extend continues the story for 10 more seconds, up to 40s.'
-                            : 'This scene is at the 40s max. Download it, or shoot a new one.'}
+                            ? 'Extend adds 10 more seconds, up to 40s.'
+                            : 'This ad is at the 40s max. Download it, or make a new one.'}
                       </p>
                     </div>
                   )}
@@ -1500,33 +1536,14 @@ export function StudioWorkspace() {
               </Card>
 
               <div className="space-y-6">
-                {castPanel}
+                <AdTemplates
+                  panel="video"
+                  disabled={isPending}
+                  onPickTemplate={applyTemplate}
+                  onPickExample={applyExample}
+                />
                 {creditsPackCard}
-                <Card className="border-border/60 bg-card/30">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-base font-display">Try a scene</CardTitle>
-                    <CardDescription>Jump into a moment and make it yours.</CardDescription>
-                  </CardHeader>
-                  <CardContent className="flex flex-wrap gap-2">
-                    {SAMPLE_SCENES.map((scene: Scene) => (
-                      <Button
-                        key={scene.id}
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          loadSceneIntoWorkspace({
-                            ...scene,
-                            videoUrl: null,
-                            interactionId: null,
-                          });
-                          router.replace(`/studio?scene=${scene.id}`);
-                        }}
-                      >
-                        {scene.title}
-                      </Button>
-                    ))}
-                  </CardContent>
-                </Card>
+                {castPanel}
               </div>
             </div>
           )}
@@ -1541,12 +1558,12 @@ export function StudioWorkspace() {
                     ) : (
                       <ImagePlus className="h-5 w-5 text-primary" />
                     )}
-                    {studioPanel === 'restyle' ? 'Restyle stage' : 'Image stage'}
+                    {studioPanel === 'restyle' ? 'Remix' : 'Image ad'}
                   </CardTitle>
                   <CardDescription>
                     {studioPanel === 'restyle'
-                      ? 'Transform a still with a short direction.'
-                      : 'Paint a cinematic still from a prompt.'}
+                      ? 'Change a product photo or creative with a short direction.'
+                      : 'Generate a static ad creative from a description.'}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -1569,14 +1586,14 @@ export function StudioWorkspace() {
                       />
                     ) : (
                       <div className="h-full w-full flex items-center justify-center text-muted-foreground text-sm px-4 text-center">
-                        Your still will appear here
+                        Your image will appear here
                       </div>
                     )}
                     {isPending && (pendingKind === 'image' || pendingKind === 'restyle') && (
                       <div className="absolute inset-0 bg-black/55 backdrop-blur-[2px] flex flex-col items-center justify-center gap-2">
                         <Loader2 className="h-8 w-8 animate-spin text-primary" />
                         <p className="text-sm text-white/90">
-                          {pendingKind === 'restyle' ? 'Restyling…' : 'Painting your still…'}
+                          {pendingKind === 'restyle' ? 'Remixing…' : 'Creating your image…'}
                         </p>
                       </div>
                     )}
@@ -1609,18 +1626,18 @@ export function StudioWorkspace() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="still-title">Title</Label>
+                    <Label htmlFor="still-title">Ad name</Label>
                     <Input
                       id="still-title"
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
-                      placeholder="Neon alley"
+                      placeholder="Spring launch post"
                     />
                   </div>
 
                   <div className="space-y-2">
                     <Label htmlFor="still-prompt">
-                      {studioPanel === 'restyle' ? 'Restyle direction' : 'What to paint'}
+                      {studioPanel === 'restyle' ? 'What to change' : 'Describe the image'}
                     </Label>
                     <Textarea
                       id="still-prompt"
@@ -1629,8 +1646,8 @@ export function StudioWorkspace() {
                       onChange={(e) => setPrompt(e.target.value)}
                       placeholder={
                         studioPanel === 'restyle'
-                          ? 'Oil painting, dusk light, softer wardrobe…'
-                          : 'A woman under neon rain, shallow depth of field…'
+                          ? 'Put the product on a marble counter with soft morning light…'
+                          : 'Flat lay of our skincare set on pink stone, soft shadows, fresh flowers…'
                       }
                     />
                   </div>
@@ -1651,14 +1668,14 @@ export function StudioWorkspace() {
                       <Sparkles className="mr-2 h-4 w-4" />
                     )}
                     {studioPanel === 'restyle'
-                      ? `Restyle · ${creditLabel('image_to_image')}`
-                      : `Generate still · ${creditLabel('text_to_image')}`}
+                      ? `Remix · ${creditLabel('image_to_image')}`
+                      : `Generate image · ${creditLabel('text_to_image')}`}
                   </Button>
 
                   {stillUrl && (
                     <div className="grid grid-cols-2 gap-2">
                       <Button variant="outline" asChild>
-                        <a href={downloadHref(stillUrl, title || 'reelwright-still')} download>
+                        <a href={downloadHref(stillUrl, title || 'reelwright-image')} download>
                           <Download className="mr-2 h-4 w-4" />
                           Download
                         </a>
@@ -1671,7 +1688,7 @@ export function StudioWorkspace() {
                         }}
                       >
                         <Play className="mr-2 h-4 w-4" />
-                        Animate this still
+                        Turn into video
                       </Button>
                     </div>
                   )}
@@ -1679,15 +1696,18 @@ export function StudioWorkspace() {
               </Card>
 
               <div className="space-y-6">
+                {studioPanel === 'image' && (
+                  <AdTemplates panel="image" disabled={isPending} onPickTemplate={applyTemplate} />
+                )}
                 {creditsPackCard}
                 <Card className="border-border/60 bg-card/30">
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-base font-display">Recent stills</CardTitle>
-                    <CardDescription>Reopen or restyle something you made.</CardDescription>
+                    <CardTitle className="text-base font-display">Recent images</CardTitle>
+                    <CardDescription>Reopen or remix something you made.</CardDescription>
                   </CardHeader>
                   <CardContent>
                     {!user ? (
-                      <p className="text-sm text-muted-foreground">Sign in to keep your stills.</p>
+                      <p className="text-sm text-muted-foreground">Sign in to keep your images.</p>
                     ) : (
                       <ImageHistory
                         images={myImages || []}
@@ -1703,15 +1723,15 @@ export function StudioWorkspace() {
           )}
 
           {studioPanel === 'animate' && (
-            <div className="max-w-2xl">
+            <div className="max-w-2xl space-y-6">
               <Card className="border-border/70 bg-card/50 overflow-hidden">
                 <CardHeader className="pb-3">
                   <CardTitle className="font-display flex items-center gap-2">
                     <Play className="h-5 w-5 text-primary" />
-                    Animate stage
+                    Photo to video
                   </CardTitle>
                   <CardDescription>
-                    Upload or reuse a still, describe the motion, and shoot.
+                    Upload a product or brand photo, describe the motion, and generate.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -1736,14 +1756,14 @@ export function StudioWorkspace() {
                       />
                     ) : (
                       <div className="h-full w-full flex items-center justify-center text-muted-foreground text-sm px-4 text-center">
-                        Add a still to animate
+                        Add a photo to bring to life
                       </div>
                     )}
                     {isPending && pendingKind === 'generate' && (
                       <div className="absolute inset-0 bg-black/55 backdrop-blur-[2px] flex flex-col items-center justify-center gap-2">
                         <Loader2 className="h-8 w-8 animate-spin text-primary" />
                         <p className="text-sm text-white/90">
-                          {pendingVideoLabel ?? 'Animating your still…'}
+                          {pendingVideoLabel ?? 'Bringing your photo to life…'}
                         </p>
                       </div>
                     )}
@@ -1751,48 +1771,26 @@ export function StudioWorkspace() {
 
                   {videoUrl && !isPending && (
                     <Button variant="outline" className="w-full" asChild>
-                      <a href={downloadHref(videoUrl, title || 'reelwright-animation')} download>
+                      <a href={downloadHref(videoUrl, title || 'reelwright-ad')} download>
                         <Download className="mr-2 h-4 w-4" />
-                        Download clip
+                        Download ad
                       </a>
                     </Button>
                   )}
 
                   {stillSourceField}
 
-                  <div className="space-y-2">
-                    <Label>Format</Label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <Button
-                        type="button"
-                        variant={aspectRatio === '16:9' ? 'default' : 'outline'}
-                        disabled={isPending}
-                        onClick={() => setAspectRatio('16:9')}
-                      >
-                        <RectangleHorizontal className="mr-2 h-4 w-4" />
-                        Landscape
-                      </Button>
-                      <Button
-                        type="button"
-                        variant={aspectRatio === '9:16' ? 'default' : 'outline'}
-                        disabled={isPending}
-                        onClick={() => setAspectRatio('9:16')}
-                      >
-                        <RectangleVertical className="mr-2 h-4 w-4" />
-                        Portrait
-                      </Button>
-                    </div>
-                  </div>
+                  {formatPicker}
 
                   {lengthPicker}
 
                   <div className="space-y-2">
-                    <Label htmlFor="animate-title">Title</Label>
+                    <Label htmlFor="animate-title">Ad name</Label>
                     <Input
                       id="animate-title"
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
-                      placeholder="Rooftop push-in"
+                      placeholder="Product spin"
                     />
                   </div>
 
@@ -1803,7 +1801,7 @@ export function StudioWorkspace() {
                       rows={5}
                       value={prompt}
                       onChange={(e) => setPrompt(e.target.value)}
-                      placeholder="Slow push-in as wind lifts her coat…"
+                      placeholder="Slow orbit around the bottle as light glides across the label…"
                     />
                   </div>
 
@@ -1818,11 +1816,12 @@ export function StudioWorkspace() {
                     ) : (
                       <Play className="mr-2 h-4 w-4" />
                     )}
-                    Animate {targetLength}s · {formatCredits(videoLengthCost(targetLength))}
+                    Generate {targetLength}s video · {formatCredits(videoLengthCost(targetLength))}
                   </Button>
                   {creditsPackCard}
                 </CardContent>
               </Card>
+              <AdTemplates panel="animate" disabled={isPending} onPickTemplate={applyTemplate} />
             </div>
           )}
 
@@ -1839,16 +1838,16 @@ export function StudioWorkspace() {
                 <div>
                   <p className="text-xs uppercase tracking-[0.2em] text-primary mb-2 flex items-center gap-2">
                     <History className="h-3.5 w-3.5" />
-                    Your reels
+                    Your ads
                   </p>
                   <h2 className="font-display text-2xl font-semibold tracking-tight">
-                    Scenes
+                    Video ads
                   </h2>
                 </div>
                 {!user ? (
                   <div className="rounded-xl border border-dashed border-border/70 bg-card/20 px-4 py-8 text-center">
                     <p className="text-sm text-muted-foreground mb-3">
-                      Sign in to see the stories you&apos;ve started.
+                      Sign in to see the ads you&apos;ve made.
                     </p>
                     <Button type="button" variant="secondary" onClick={() => setAuthOpen(true)}>
                       Sign in
@@ -1870,13 +1869,13 @@ export function StudioWorkspace() {
 
               <section className="space-y-4">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.2em] text-primary mb-2">Stills</p>
+                  <p className="text-xs uppercase tracking-[0.2em] text-primary mb-2">Images</p>
                   <h2 className="font-display text-2xl font-semibold tracking-tight">
-                    Images
+                    Image ads
                   </h2>
                 </div>
                 {!user ? (
-                  <p className="text-sm text-muted-foreground">Sign in to keep your stills.</p>
+                  <p className="text-sm text-muted-foreground">Sign in to keep your images.</p>
                 ) : (
                   <ImageHistory
                     images={myImages || []}

@@ -82,7 +82,7 @@ export function ImageHistory({
             <div className="px-2.5 py-2">
               <p className="text-xs font-medium truncate">{image.title || 'Untitled'}</p>
               <p className="text-[11px] text-muted-foreground truncate">
-                {image.mode === 'image_to_image' ? 'Restyle' : 'Image'}
+                {image.mode === 'image_to_image' ? 'Remix' : 'Image'}
               </p>
             </div>
           </button>

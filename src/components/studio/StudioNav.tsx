@@ -16,12 +16,12 @@ const ITEMS: {
   label: string;
   icon: typeof Clapperboard;
 }[] = [
-  { id: 'video', label: 'Video', icon: Clapperboard },
-  { id: 'image', label: 'Image', icon: ImageIcon },
-  { id: 'restyle', label: 'Restyle', icon: Palette },
-  { id: 'animate', label: 'Animate', icon: Play },
-  { id: 'cast', label: 'Cast', icon: Users },
-  { id: 'reels', label: 'Reels', icon: History },
+  { id: 'video', label: 'Video ad', icon: Clapperboard },
+  { id: 'image', label: 'Image ad', icon: ImageIcon },
+  { id: 'animate', label: 'Photo to video', icon: Play },
+  { id: 'restyle', label: 'Remix', icon: Palette },
+  { id: 'cast', label: 'Presenters', icon: Users },
+  { id: 'reels', label: 'My ads', icon: History },
 ];
 
 export function StudioNav({
@@ -45,7 +45,7 @@ export function StudioNav({
             type="button"
             onClick={() => onChange(item.id)}
             className={cn(
-              'flex flex-col items-center justify-center gap-1 min-w-[4.25rem] lg:min-w-0 rounded-lg px-2.5 py-2.5 text-[11px] tracking-wide transition-colors',
+              'flex flex-col items-center justify-center gap-1 min-w-[4.25rem] lg:min-w-0 lg:w-[4.75rem] rounded-lg px-2.5 py-2.5 text-[11px] leading-tight text-center tracking-wide transition-colors',
               active
                 ? 'bg-primary/15 text-primary'
                 : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
