@@ -58,8 +58,47 @@ export interface StudioImage {
   updatedAt?: unknown;
 }
 
+export interface BrandAdIdea {
+  id: string;
+  title: string;
+  concept: string;
+  why: string;
+  format: 'video' | 'image';
+  aspectRatio: VideoAspectRatio;
+  length: 10 | 20 | 30 | 40;
+  prompt: string;
+}
+
+export interface BrandColors {
+  primary: string;
+  secondary: string;
+  accent: string;
+}
+
+/** User-editable brand fields; analysis fills them from the website. */
+export interface BrandProfileFields {
+  name: string;
+  summary: string;
+  offerings: string[];
+  audience: string;
+  tone: string;
+  visualStyle: string;
+  offers: string[];
+  colors: BrandColors;
+  logoUrl: string | null;
+  applyToAds: boolean;
+}
+
+export interface BrandProfile extends BrandProfileFields {
+  websiteUrl: string | null;
+  ideas: BrandAdIdea[];
+  analysesToday?: number;
+  analysesPerDay?: number;
+}
+
 /** Left-rail studio panels. */
 export type StudioPanel =
+  | 'brand'
   | 'video'
   | 'image'
   | 'restyle'

@@ -18,6 +18,8 @@ import { SAMPLE_CHARACTERS, getSampleCharacter } from '@/lib/studio/samples';
 import { hasTemplatePlaceholders, type AdTemplate } from '@/lib/studio/ad-templates';
 import type { MarketingExample } from '@/components/landing/MarketingFeed';
 import { AdTemplates } from '@/components/studio/AdTemplates';
+import { BrandIdeaList, BrandPanel, WebsiteAnalyzer } from '@/components/studio/BrandPanel';
+import { withBrand } from '@/lib/studio/brand-prompt';
 import { CharacterCard } from '@/components/studio/CharacterCard';
 import { SceneHistory } from '@/components/studio/SceneHistory';
 import { ImageHistory } from '@/components/studio/ImageHistory';
@@ -48,6 +50,9 @@ import {
 } from 'lucide-react';
 import { collection, query, where } from 'firebase/firestore';
 import type {
+  BrandAdIdea,
+  BrandProfile,
+  BrandProfileFields,
   Character,
   ImageAspectRatio,
   Scene,
@@ -116,6 +121,51 @@ export function StudioWorkspace() {
   const [charStyle, setCharStyle] = useState('Photoreal, natural light');
   const [charAssetFile, setCharAssetFile] = useState<File | null>(null);
   const [charAssetPreview, setCharAssetPreview] = useState<string | null>(null);
+
+  const [brand, setBrand] = useState<BrandProfile | null>(null);
+  const [brandLoaded, setBrandLoaded] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isSavingBrand, setIsSavingBrand] = useState(false);
+
+  const brandRequest = useCallback(
+    async (path: string, init?: { method: string; body: unknown }) => {
+      if (!user) throw new Error('Sign in to set up your brand.');
+      const token = await user.getIdToken();
+      const response = await fetch(path, {
+        method: init?.method || 'GET',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: init ? JSON.stringify(init.body) : undefined,
+      });
+      const result = (await response.json().catch(() => ({}))) as {
+        ok?: boolean;
+        brand?: BrandProfile | null;
+        error?: string;
+      };
+      if (!result.ok) throw new Error(result.error || 'Something went wrong. Try again.');
+      return result.brand ?? null;
+    },
+    [user]
+  );
+
+  useEffect(() => {
+    if (!user) {
+      setBrand(null);
+      setBrandLoaded(false);
+      return;
+    }
+    let cancelled = false;
+    brandRequest('/api/brand')
+      .then((loaded) => {
+        if (!cancelled) setBrand(loaded);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setBrandLoaded(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user, brandRequest]);
 
   const [creditPacks, setCreditPacks] = useState<{ credits: number; cents: number }[] | null>(
     null
@@ -212,6 +262,14 @@ export function StudioWorkspace() {
     setPrompt((prev) => prev || promptParam.slice(0, 4000));
     setAspectRatio(searchParams.get('ratio') === '16:9' ? '16:9' : '9:16');
   }, [searchParams]);
+
+  const brandOnboardedRef = useRef(false);
+  useEffect(() => {
+    if (!brandLoaded || brandOnboardedRef.current) return;
+    brandOnboardedRef.current = true;
+    const arrivedWithWork = ['scene', 'prompt', 'character'].some((key) => searchParams.has(key));
+    if (!brand && !arrivedWithWork) setStudioPanel('brand');
+  }, [brandLoaded, brand, searchParams]);
 
   useEffect(() => {
     const sceneIdParam = searchParams.get('scene');
@@ -460,6 +518,59 @@ export function StudioWorkspace() {
     if (template.length) setTargetLength(template.length);
   };
 
+  const handleAnalyzeBrand = (url: string) => {
+    if (!user) {
+      setAuthOpen(true);
+      return;
+    }
+    setIsAnalyzing(true);
+    void brandRequest('/api/brand/analyze', { method: 'POST', body: { url } })
+      .then((analyzed) => {
+        setBrand(analyzed);
+        setStudioPanel('brand');
+        toast({
+          title: analyzed ? `Meet ${analyzed.name}` : 'Brand ready',
+          description: 'Check your brand profile, then pick a recommended ad.',
+        });
+      })
+      .catch((err: Error) => {
+        toast({ variant: 'destructive', title: 'Couldn’t analyze that site', description: err.message });
+      })
+      .finally(() => setIsAnalyzing(false));
+  };
+
+  const handleSaveBrand = (fields: BrandProfileFields) => {
+    if (!user) {
+      setAuthOpen(true);
+      return;
+    }
+    setIsSavingBrand(true);
+    void brandRequest('/api/brand', { method: 'PUT', body: fields })
+      .then((saved) => {
+        setBrand(saved);
+        toast({ title: 'Brand saved', description: 'Your next ads will use these details.' });
+      })
+      .catch((err: Error) => {
+        toast({ variant: 'destructive', title: 'Couldn’t save your brand', description: err.message });
+      })
+      .finally(() => setIsSavingBrand(false));
+  };
+
+  const applyBrandIdea = (idea: BrandAdIdea) => {
+    if (idea.format === 'image') {
+      startNewStill();
+      setStudioPanel('image');
+      setImageAspectRatio(idea.aspectRatio === '16:9' ? '16:9' : '3:4');
+    } else {
+      if (sceneId || videoUrl) startNewScene();
+      setStudioPanel('video');
+      setAspectRatio(idea.aspectRatio);
+      setTargetLength(idea.length);
+    }
+    setTitle(idea.title);
+    setPrompt(idea.prompt);
+  };
+
   const applyExample = (example: MarketingExample) => {
     if (sceneId || videoUrl) startNewScene();
     setStudioPanel('video');
@@ -506,7 +617,7 @@ export function StudioWorkspace() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             userId: user!.uid,
-            prompt: finalPrompt,
+            prompt: mode === 'text_to_image' ? withBrand(finalPrompt, brand) : finalPrompt,
             title: title || undefined,
             sourceImageUrl: mode === 'image_to_image' ? sourceForRestyle : null,
             aspectRatio: imageAspectRatio,
@@ -729,7 +840,7 @@ export function StudioWorkspace() {
 
         const result = await postGenerate({
           userId: user!.uid,
-          prompt: promptWithCast,
+          prompt: mode === 'generate' ? withBrand(promptWithCast, brand) : promptWithCast,
           title: title || undefined,
           characterIds: isAnimate ? [] : selectedCharacterIds,
           referenceImageUrls,
@@ -1008,6 +1119,12 @@ export function StudioWorkspace() {
       subtitle:
         'Save the faces of your brand — you, your team, or an AI spokesperson — and reuse them in every ad.',
     },
+    brand: {
+      title: brand ? `${brand.name}.` : 'Your brand.',
+      subtitle: brand
+        ? 'Your brand profile and the ads we recommend making first.'
+        : 'Drop your website. We’ll learn your brand and recommend the ads to make first.',
+    },
     reels: {
       title: 'Your ads.',
       subtitle: 'Everything you’ve made, ready to download or keep refining.',
@@ -1285,6 +1402,21 @@ export function StudioWorkspace() {
         <StudioNav value={studioPanel} onChange={setStudioPanel} />
 
         <div className="flex-1 min-w-0 space-y-6">
+          {studioPanel === 'brand' && (
+            <div className="max-w-3xl">
+              <BrandPanel
+                brand={brand}
+                isLoading={Boolean(user) && !brandLoaded}
+                isAnalyzing={isAnalyzing}
+                isSaving={isSavingBrand}
+                disabled={isPending}
+                onAnalyze={handleAnalyzeBrand}
+                onSave={handleSaveBrand}
+                onUseIdea={applyBrandIdea}
+              />
+            </div>
+          )}
+
           {studioPanel === 'video' && (
             <div className="grid lg:grid-cols-[1.1fr_0.9fr] gap-6">
               <Card className="border-border/70 bg-card/50 overflow-hidden">
@@ -1296,9 +1428,14 @@ export function StudioWorkspace() {
                   <CardDescription>
                     {sourceVideoUrl && !interactionId
                       ? 'Say what to change in your footage.'
-                      : selectedCharacters.length
-                        ? `Featuring ${selectedCharacters.map((c) => c.name).join(', ')}`
-                        : 'Describe your ad, or start from a template.'}
+                      : [
+                          selectedCharacters.length
+                            ? `Featuring ${selectedCharacters.map((c) => c.name).join(', ')}.`
+                            : 'Describe your ad, or start from a template.',
+                          brand?.applyToAds ? `${brand.name} brand applied.` : '',
+                        ]
+                          .filter(Boolean)
+                          .join(' ')}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -1536,6 +1673,51 @@ export function StudioWorkspace() {
               </Card>
 
               <div className="space-y-6">
+                {brand ? (
+                  brand.ideas.length > 0 && (
+                    <Card className="border-primary/30 bg-primary/5">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-base font-display flex items-center gap-2">
+                          <Sparkles className="h-4 w-4 text-primary" />
+                          Recommended for {brand.name}
+                        </CardTitle>
+                        <CardDescription>
+                          <button
+                            type="button"
+                            className="underline underline-offset-2 hover:text-foreground"
+                            onClick={() => setStudioPanel('brand')}
+                          >
+                            See all {brand.ideas.length} ideas and your brand profile
+                          </button>
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <BrandIdeaList
+                          ideas={brand.ideas.filter((idea) => idea.format === 'video').slice(0, 3)}
+                          disabled={isPending}
+                          onUseIdea={applyBrandIdea}
+                          compact
+                        />
+                      </CardContent>
+                    </Card>
+                  )
+                ) : (
+                  <Card className="border-primary/30 bg-primary/5">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-base font-display flex items-center gap-2">
+                        <Sparkles className="h-4 w-4 text-primary" />
+                        Get ads made for your business
+                      </CardTitle>
+                      <CardDescription>
+                        Drop your website. We’ll learn your brand and recommend the ads to make
+                        first. Free.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <WebsiteAnalyzer isAnalyzing={isAnalyzing} onAnalyze={handleAnalyzeBrand} />
+                    </CardContent>
+                  </Card>
+                )}
                 <AdTemplates
                   panel="video"
                   disabled={isPending}

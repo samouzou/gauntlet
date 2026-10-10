@@ -7,6 +7,7 @@ import {
   Play,
   Users,
   History,
+  Store,
 } from 'lucide-react';
 import type { StudioPanel } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -16,6 +17,7 @@ const ITEMS: {
   label: string;
   icon: typeof Clapperboard;
 }[] = [
+  { id: 'brand', label: 'Brand', icon: Store },
   { id: 'video', label: 'Video ad', icon: Clapperboard },
   { id: 'image', label: 'Image ad', icon: ImageIcon },
   { id: 'animate', label: 'Photo to video', icon: Play },
