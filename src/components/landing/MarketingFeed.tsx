@@ -160,16 +160,14 @@ function PhoneClip({ example, index }: { example: MarketingExample; index: numbe
           <video
             ref={videoRef}
             src={inView || loaded ? `/samples/marketing/${example.slug}.mp4` : undefined}
+            poster={`/samples/marketing/${example.slug}.jpg`}
             muted
             loop
             playsInline
             preload="none"
             onLoadedData={() => setLoaded(true)}
             onError={() => setFailed(true)}
-            className={cn(
-              'absolute inset-0 h-full w-full object-cover transition-opacity duration-500',
-              loaded ? 'opacity-100' : 'opacity-0'
-            )}
+            className="absolute inset-0 h-full w-full object-cover"
           />
         )}
         <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/70" />
